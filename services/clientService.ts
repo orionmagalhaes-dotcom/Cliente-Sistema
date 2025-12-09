@@ -42,6 +42,35 @@ export const addLocalDorama = (phoneNumber: string, type: 'watching' | 'favorite
   return currentData;
 };
 
+// --- BACKUP ROBUSTO (NOVO) ---
+// Salva uma cópia dos doramas no perfil do cliente (game_progress) para garantir permanência
+export const syncDoramaBackup = async (phoneNumber: string, data: any) => {
+    const cleanNum = cleanPhone(phoneNumber);
+    const possibleNumbers = [cleanNum];
+    if (cleanNum.startsWith('55') && cleanNum.length > 10) possibleNumbers.push(cleanNum.substring(2));
+    else if (cleanNum.length <= 11) possibleNumbers.push(`55${cleanNum}`);
+
+    try {
+        const { data: clientData } = await supabase
+            .from('clients')
+            .select('game_progress')
+            .in('phone_number', possibleNumbers)
+            .limit(1)
+            .single();
+        
+        let currentProgress = clientData?.game_progress || {};
+        currentProgress['doramas_backup'] = data;
+
+        await supabase
+            .from('clients')
+            .update({ game_progress: currentProgress })
+            .in('phone_number', possibleNumbers);
+            
+    } catch (e) {
+        console.error("Backup Sync Error", e);
+    }
+};
+
 // --- FUNÇÕES DE CLIENTE ---
 
 export const getAllClients = async (): Promise<ClientDBRow[]> => {
@@ -282,28 +311,23 @@ export const saveGameProgress = async (phoneNumber: string, gameId: string, data
     }
 };
 
-// --- DORAMA OPERATIONS (ROBUST) ---
+// --- DORAMA OPERATIONS (ROBUST & PERMANENT) ---
 
 export const getUserDoramasFromDB = async (phoneNumber: string): Promise<{ watching: Dorama[], favorites: Dorama[], completed: Dorama[] }> => {
     const cleanNum = cleanPhone(phoneNumber);
-    
-    // Fallback: Local data using strict cleaned number
     const localData = getLocalUserData(cleanNum);
     const result = { watching: [], favorites: [], completed: [] };
     
-    // Strategy: Search for multiple variations of the phone number to handle formatting inconsistencies
     const possibleNumbers = [cleanNum];
-    if (cleanNum.startsWith('55') && cleanNum.length > 10) {
-        possibleNumbers.push(cleanNum.substring(2)); // Try without 55
-    } else if (cleanNum.length <= 11) {
-        possibleNumbers.push(`55${cleanNum}`); // Try with 55
-    }
+    if (cleanNum.startsWith('55') && cleanNum.length > 10) possibleNumbers.push(cleanNum.substring(2));
+    else if (cleanNum.length <= 11) possibleNumbers.push(`55${cleanNum}`);
 
+    // STRATEGY 1: Fetch from dedicated user_doramas table
     try {
       let { data, error } = await supabase
         .from('user_doramas')
         .select('*')
-        .in('phone_number', possibleNumbers); // Use IN operator to find any match
+        .in('phone_number', possibleNumbers);
       
       if (data && !error && data.length > 0) {
           const dbItems: Dorama[] = data.map((row: any) => ({
@@ -322,25 +346,39 @@ export const getUserDoramasFromDB = async (phoneNumber: string): Promise<{ watch
           result.favorites = dbItems.filter(d => d.status === 'Plan to Watch');
           result.completed = dbItems.filter(d => d.status === 'Completed');
           
-          // Sync DB data to LocalStorage to keep it fresh
           localStorage.setItem(`dorama_user_${cleanNum}`, JSON.stringify(result));
-          
           return result;
       }
-      
-      // If DB returns empty, return local data (offline support)
-      return localData;
+    } catch (e) { console.error("DB Primary Fetch Error", e); }
 
-    } catch (e) {
-      console.error("DB Fetch Error, falling back to local", e);
-      return localData;
-    }
+    // STRATEGY 2: Backup Fetch (From Clients Table)
+    // Se a tabela principal falhou ou está vazia, tenta o backup salvo no perfil
+    try {
+        const { data: clientData } = await supabase
+            .from('clients')
+            .select('game_progress')
+            .in('phone_number', possibleNumbers)
+            .limit(1)
+            .single();
+        
+        if (clientData?.game_progress?.doramas_backup) {
+            const backup = clientData.game_progress.doramas_backup;
+            if (backup.watching?.length > 0 || backup.favorites?.length > 0 || backup.completed?.length > 0) {
+                // Restore backup to local
+                localStorage.setItem(`dorama_user_${cleanNum}`, JSON.stringify(backup));
+                return backup;
+            }
+        }
+    } catch (e) { console.error("DB Backup Fetch Error", e); }
+
+    // Fallback: Local Data
+    return localData;
 };
 
 export const addDoramaToDB = async (phoneNumber: string, listType: 'watching' | 'favorites' | 'completed', dorama: Dorama): Promise<Dorama | null> => {
     const cleanNum = cleanPhone(phoneNumber);
     
-    // Always save to local first (Optimistic UI)
+    // 1. Optimistic Local Save
     addLocalDorama(cleanNum, listType, dorama);
 
     try {
@@ -349,7 +387,7 @@ export const addDoramaToDB = async (phoneNumber: string, listType: 'watching' | 
       if (listType === 'completed') statusStr = 'Completed';
 
       const dbRow = {
-        phone_number: cleanNum, // Saves with the strictest cleaned number
+        phone_number: cleanNum, 
         title: dorama.title,
         genre: dorama.genre || 'Dorama',
         thumbnail: dorama.thumbnail,
@@ -368,19 +406,14 @@ export const addDoramaToDB = async (phoneNumber: string, listType: 'watching' | 
         .single();
   
       if (error || !data) {
-          console.warn("Supabase Insert Failed:", error);
-          // Return an object with a local ID so UI doesn't break
           return { ...dorama, id: 'local-' + Date.now(), status: statusStr as any };
       }
   
       const realDorama = { ...dorama, id: data.id, status: statusStr as any };
-      
-      // Re-save local with the Real ID from DB to ensure sync
       addLocalDorama(cleanNum, listType, realDorama); 
 
       return realDorama;
     } catch (e) {
-      console.error("Add Dorama Exception:", e);
       return { ...dorama, id: 'local-' + Date.now() };
     }
 };

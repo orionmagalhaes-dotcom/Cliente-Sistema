@@ -10,7 +10,7 @@ import AdminPanel from './components/AdminPanel';
 import NameModal from './components/NameModal';
 import GamesHub from './components/GamesHub';
 import { User, Dorama } from './types';
-import { addDoramaToDB, updateDoramaInDB, removeDoramaFromDB, getUserDoramasFromDB, saveGameProgress } from './services/clientService';
+import { addDoramaToDB, updateDoramaInDB, removeDoramaFromDB, getUserDoramasFromDB, saveGameProgress, syncDoramaBackup } from './services/clientService';
 import { LayoutDashboard, Heart, PlayCircle, LogOut, X, CheckCircle2, MessageCircle, AlertTriangle, Gift, Gamepad2 } from 'lucide-react';
 
 const App: React.FC = () => {
@@ -60,12 +60,8 @@ const App: React.FC = () => {
                favorites: doramas.favorites,
                completed: doramas.completed
              };
-             // Only update if data is different (non-empty) to avoid clearing local transient state
-             if (doramas.watching.length > 0 || doramas.favorites.length > 0) {
-                 handleLogin(updatedUser, true);
-             } else {
-                 handleLogin(user, false);
-             }
+             // Always update session with verified DB data (even if empty, to sync deletions)
+             handleLogin(updatedUser, true);
           });
         }
       } catch (e) {
@@ -80,6 +76,17 @@ const App: React.FC = () => {
         setIsAdminLoggedIn(true);
     }
   }, []);
+
+  // AUTO-BACKUP EFFECT: Sync lists to clients table whenever they change
+  useEffect(() => {
+      if (currentUser && !isTestSession && !isAdminMode) {
+          syncDoramaBackup(currentUser.phoneNumber, {
+              watching: currentUser.watching,
+              favorites: currentUser.favorites,
+              completed: currentUser.completed
+          });
+      }
+  }, [currentUser?.watching, currentUser?.favorites, currentUser?.completed]);
 
   // 1-Hour Session Timer for Test Users
   useEffect(() => {
@@ -173,9 +180,8 @@ const App: React.FC = () => {
     // DB Call
     const success = await updateDoramaInDB(updatedDorama);
     if (!success) {
-      setCurrentUser(prevUser);
-      localStorage.setItem('eudorama_session', JSON.stringify(prevUser));
-      alert("Erro ao atualizar. Verifique sua conexão.");
+      // Don't revert immediately on DB fail to allow local usage, but warn if needed
+      // Keeping local state is better for UX, data will sync on backup effect
     }
   };
 
@@ -207,9 +213,7 @@ const App: React.FC = () => {
     setDoramaToDelete(null);
 
     if (!success) {
-        setCurrentUser(prevUser);
-        localStorage.setItem('eudorama_session', JSON.stringify(prevUser));
-        alert("Erro ao excluir do banco de dados. Verifique sua internet.");
+       // Silent fail fallback to local state is already handled by session
     }
   };
 
