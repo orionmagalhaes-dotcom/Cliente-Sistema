@@ -444,7 +444,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onOpenSupport, onOpenChecko
                         <Cast className="w-6 h-6" />
                     </div>
                     <div className="text-left">
-                        <h3 className="font-bold text-lg leading-none">Conectar TV</h3>
+                        <h3 className="font-bold text-lg leading-tight">Conecte na sua TV ou celular</h3>
                         <p className="text-blue-100 text-xs mt-1">Guia passo a passo</p>
                     </div>
                 </div>
