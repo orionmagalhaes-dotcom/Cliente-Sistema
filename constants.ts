@@ -1,4 +1,5 @@
-import { ClientDBRow, Dorama } from './types';
+
+import { ClientDBRow, Dorama, AppCredentialDBRow } from './types';
 
 // Mock data matching the 'clients' table structure in Supabase
 // Usado apenas como fallback caso a conexão com Supabase falhe ou não esteja configurada
@@ -8,23 +9,73 @@ export const MOCK_DB_CLIENTS: ClientDBRow[] = [
     phone_number: '11999999999',
     purchase_date: '2024-02-15', 
     duration_months: 12,
-    subscriptions: ['Rakuten Viki', 'Kocowa'],
+    subscriptions: ['Viki Pass', 'Kocowa+'],
     is_debtor: false,
     is_contacted: true,
     deleted: false,
-    created_at: '2024-02-15T10:00:00Z'
+    created_at: '2024-02-15T10:00:00Z',
+    client_name: 'Usuário Demo 1'
   },
   {
     id: '2',
     phone_number: '21988888888',
     purchase_date: '2023-01-10',
     duration_months: 12,
-    subscriptions: ['Rakuten Viki'],
+    subscriptions: ['Viki Pass'],
     is_debtor: true,
     is_contacted: false,
     deleted: false,
-    created_at: '2023-01-10T10:00:00Z'
+    created_at: '2023-01-10T10:00:00Z',
+    client_name: 'Usuário Demo 2'
   }
+];
+
+export const MOCK_CREDENTIALS: AppCredentialDBRow[] = [
+    {
+        id: 'mock-1',
+        service: 'Viki Pass',
+        email: 'viki.demo@eudorama.com',
+        password: 'senha_viki_demo',
+        published_at: new Date().toISOString(),
+        is_visible: true,
+        created_at: new Date().toISOString()
+    },
+    {
+        id: 'mock-2',
+        service: 'Kocowa+',
+        email: 'kocowa.demo@eudorama.com',
+        password: 'senha_kocowa',
+        published_at: new Date().toISOString(),
+        is_visible: true,
+        created_at: new Date().toISOString()
+    },
+    {
+        id: 'mock-3',
+        service: 'IQIYI',
+        email: 'iqiyi.demo@eudorama.com',
+        password: 'senha_iqiyi',
+        published_at: new Date().toISOString(),
+        is_visible: true,
+        created_at: new Date().toISOString()
+    },
+    {
+        id: 'mock-4',
+        service: 'WeTV',
+        email: 'wetv.demo@eudorama.com',
+        password: 'senha_wetv',
+        published_at: new Date().toISOString(),
+        is_visible: true,
+        created_at: new Date().toISOString()
+    },
+    {
+        id: 'mock-5',
+        service: 'DramaBox',
+        email: 'dramabox.demo@eudorama.com',
+        password: 'senha_dramabox',
+        published_at: new Date().toISOString(),
+        is_visible: true,
+        created_at: new Date().toISOString()
+    }
 ];
 
 export const LOGIN_HELP_TIPS = [

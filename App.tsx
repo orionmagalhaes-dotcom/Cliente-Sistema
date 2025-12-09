@@ -9,8 +9,9 @@ import AdminLogin from './components/AdminLogin';
 import AdminPanel from './components/AdminPanel';
 import NameModal from './components/NameModal';
 import GamesHub from './components/GamesHub';
+import Toast from './components/Toast';
 import { User, Dorama } from './types';
-import { addDoramaToDB, updateDoramaInDB, removeDoramaFromDB, getUserDoramasFromDB, saveGameProgress, syncDoramaBackup } from './services/clientService';
+import { addDoramaToDB, updateDoramaInDB, removeDoramaFromDB, getUserDoramasFromDB, saveGameProgress, syncDoramaBackup, addLocalDorama } from './services/clientService';
 import { LayoutDashboard, Heart, PlayCircle, LogOut, X, CheckCircle2, MessageCircle, AlertTriangle, Gift, Gamepad2 } from 'lucide-react';
 
 const App: React.FC = () => {
@@ -25,6 +26,7 @@ const App: React.FC = () => {
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [checkoutType, setCheckoutType] = useState<'renewal' | 'gift' | 'new_sub'>('renewal');
   const [checkoutTargetService, setCheckoutTargetService] = useState<string | null>(null);
+  const [toast, setToast] = useState<{message: string, type: 'success' | 'error'} | null>(null);
 
   // Modal State - Add / Edit
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -166,7 +168,6 @@ const App: React.FC = () => {
     if (!currentUser) return;
     
     // Optimistic Update
-    const prevUser = { ...currentUser };
     const listKey = activeTab === 'favorites' ? 'favorites' : (activeTab === 'completed' ? 'completed' : 'watching');
     
     if (activeTab === 'games' || activeTab === 'home') return; 
@@ -177,11 +178,15 @@ const App: React.FC = () => {
     setCurrentUser(newUserState);
     localStorage.setItem('eudorama_session', JSON.stringify(newUserState));
 
-    // DB Call
+    // CRITICAL: Force update local backup cache immediately to allow self-healing on reload
+    addLocalDorama(currentUser.phoneNumber, listKey as any, updatedDorama);
+
+    // DB Call with Confirmation
     const success = await updateDoramaInDB(updatedDorama);
-    if (!success) {
-      // Don't revert immediately on DB fail to allow local usage, but warn if needed
-      // Keeping local state is better for UX, data will sync on backup effect
+    if (success) {
+        setToast({ message: 'Salvo com sucesso!', type: 'success' });
+    } else {
+        setToast({ message: 'Erro ao salvar. Verifique a conexão.', type: 'error' });
     }
   };
 
@@ -212,8 +217,10 @@ const App: React.FC = () => {
     setIsDeleteModalOpen(false);
     setDoramaToDelete(null);
 
-    if (!success) {
-       // Silent fail fallback to local state is already handled by session
+    if (success) {
+        setToast({ message: 'Dorama removido!', type: 'success' });
+    } else {
+        setToast({ message: 'Erro ao remover.', type: 'error' });
     }
   };
 
@@ -274,6 +281,7 @@ const App: React.FC = () => {
     if (modalType === 'favorites') status = 'Plan to Watch';
     if (modalType === 'completed') status = 'Completed';
 
+    // Capture values from inputs (Editing OR Creating)
     const season = parseInt(newDoramaSeason) || 1;
     const total = parseInt(newDoramaTotalEp) || 16;
     const rating = newDoramaRating;
@@ -299,7 +307,7 @@ const App: React.FC = () => {
           genre: 'Drama',
           thumbnail: `https://ui-avatars.com/api/?name=${newDoramaName}&background=random&size=128`,
           status: status,
-          episodesWatched: modalType === 'completed' ? total : (modalType === 'watching' ? 1 : 0),
+          episodesWatched: modalType === 'completed' ? total : 1, // Start at Ep 1 if adding to watching
           totalEpisodes: total,
           season: season,
           rating: rating
@@ -322,6 +330,7 @@ const App: React.FC = () => {
         const createdDorama = await addDoramaToDB(currentUser.phoneNumber, modalType, tempDorama);
     
         if (createdDorama) {
+          setToast({ message: 'Adicionado com sucesso!', type: 'success' });
           // Replace temporary item with real DB item (ID fix)
           setCurrentUser(prev => {
             if (!prev) return null;
@@ -332,6 +341,8 @@ const App: React.FC = () => {
             localStorage.setItem('eudorama_session', JSON.stringify(newState));
             return newState;
           });
+        } else {
+          setToast({ message: 'Erro ao salvar no banco.', type: 'error' });
         }
     }
   };
@@ -406,6 +417,8 @@ const App: React.FC = () => {
          </div>
       )}
       
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+
       {/* Top Bar */}
       <div className="bg-white p-4 shadow-sm flex justify-between items-center z-30 sticky top-0 border-b border-gray-200 shrink-0">
           <h1 className="text-xl font-extrabold text-primary-700 tracking-tight">
@@ -519,8 +532,11 @@ const App: React.FC = () => {
                     />
                 </div>
                 
-                {/* Inputs for Watching Mode Only */}
-                {modalType === 'watching' && (
+                {/* 
+                   MODIFIED: Inputs for Season/Ep ONLY shown when EDITING (editingDorama is not null).
+                   When adding new, we use defaults to simplify the UX.
+                */}
+                {(modalType === 'watching' || modalType === 'completed') && editingDorama && (
                     <div className="grid grid-cols-2 gap-4">
                         <div>
                             <label className="block text-sm font-bold text-gray-700 mb-1">Temporada</label>
@@ -629,7 +645,7 @@ const App: React.FC = () => {
           className={`flex flex-col items-center space-y-1 w-1/5 ${activeTab === 'watching' ? 'text-primary-700' : 'text-gray-400'}`}
         >
           <PlayCircle className={`w-6 h-6 ${activeTab === 'watching' ? 'fill-current opacity-20' : ''}`} />
-          <span className="font-bold uppercase tracking-tight text-[10px]">Vendo</span>
+          <span className="font-bold uppercase tracking-tight text-[10px]">Assistindo</span>
         </button>
 
         <button 

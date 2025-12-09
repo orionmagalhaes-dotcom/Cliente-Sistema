@@ -261,14 +261,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onOpenSupport, onOpenChecko
                           <p className="text-xs text-yellow-700 pl-7">
                               A cada <strong>10 doramas</strong> que você move para a lista de "Finalizados" (Fim), você ganha 1 Estrela Brilhante!
                           </p>
-                          
-                          <p className="text-sm font-bold text-yellow-800 flex items-start">
-                              <span className="bg-yellow-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs mr-2 flex-shrink-0 mt-0.5">2</span>
-                              Para que serve?
-                          </p>
-                          <p className="text-xs text-yellow-700 pl-7">
-                              As estrelas mostram seu nível de "Dorameira de Elite". Em breve, você poderá trocar estrelas por descontos na renovação ou dias extras!
-                          </p>
                       </div>
 
                       <div className="pt-2">

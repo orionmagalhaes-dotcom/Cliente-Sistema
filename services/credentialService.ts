@@ -1,5 +1,7 @@
+
 import { AppCredential, AppCredentialDBRow, User, ClientDBRow } from '../types';
 import { getAllClients, supabase } from './clientService';
+import { MOCK_CREDENTIALS } from '../constants';
 
 // --- CRUD COM SUPABASE ---
 
@@ -10,7 +12,10 @@ export const fetchCredentials = async (): Promise<AppCredential[]> => {
       .select('*');
 
     if (error) {
-        console.error('Supabase error fetching credentials:', JSON.stringify(error, null, 2));
+        // Suppress specific fetch errors to avoid console noise when offline/blocked
+        if (error.message && !error.message.includes('Failed to fetch')) {
+             console.error('Supabase error fetching credentials:', JSON.stringify(error, null, 2));
+        }
         throw error;
     }
 
@@ -26,8 +31,16 @@ export const fetchCredentials = async (): Promise<AppCredential[]> => {
       isVisible: row.is_visible !== undefined ? row.is_visible : true
     }));
   } catch (error) {
-    console.error('Erro ao buscar credenciais (Catch):', error);
-    return [];
+    // Fallback silencioso para Mocks em caso de erro de conexão
+    console.warn('Usando credenciais de demonstração (Conexão falhou).');
+    return MOCK_CREDENTIALS.map(row => ({
+      id: row.id,
+      service: row.service,
+      email: row.email,
+      password: row.password,
+      publishedAt: row.published_at,
+      isVisible: row.is_visible
+    }));
   }
 };
 
@@ -75,7 +88,7 @@ export const deleteCredential = async (id: string): Promise<void> => {
 // --- LÓGICA DE DISTRIBUIÇÃO ---
 
 export const getAssignedCredential = async (user: User, serviceName: string): Promise<{ credential: AppCredential | null, alert: string | null }> => {
-  // 1. Busca credenciais DO SUPABASE
+  // 1. Busca credenciais (com fallback para mock se falhar)
   const credentialsList = await fetchCredentials();
   
   const allCreds = credentialsList

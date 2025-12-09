@@ -1,6 +1,7 @@
+
 import React from 'react';
 import { Dorama } from '../types';
-import { PlayCircle, Heart, Plus, CheckCircle2, Trash2, MinusCircle, PlusCircle, Film, Edit3, Star, Check } from 'lucide-react';
+import { PlayCircle, Heart, Plus, CheckCircle2, Trash2, Minus, PlusCircle, Film, Edit3, Star, Check, Tv2, Clapperboard } from 'lucide-react';
 
 interface DoramaListProps {
   title: string;
@@ -32,14 +33,34 @@ const DoramaList: React.FC<DoramaListProps> = ({ title, doramas, type, onAdd, on
   const handleIncrementEpisode = (e: React.MouseEvent, dorama: Dorama) => {
     e.stopPropagation();
     if (onUpdate) {
-      onUpdate({ ...dorama, episodesWatched: (dorama.episodesWatched || 0) + 1 });
+      const nextEp = (dorama.episodesWatched || 0) + 1;
+      if (nextEp <= 99) {
+          onUpdate({ ...dorama, episodesWatched: nextEp });
+      }
     }
   };
 
   const handleDecrementEpisode = (e: React.MouseEvent, dorama: Dorama) => {
     e.stopPropagation();
-    if (onUpdate && (dorama.episodesWatched || 0) > 0) {
+    if (onUpdate && (dorama.episodesWatched || 0) > 1) {
       onUpdate({ ...dorama, episodesWatched: (dorama.episodesWatched || 0) - 1 });
+    }
+  };
+
+  const handleIncrementSeason = (e: React.MouseEvent, dorama: Dorama) => {
+    e.stopPropagation();
+    if (onUpdate) {
+        const nextSeason = (dorama.season || 1) + 1;
+        if (nextSeason <= 99) {
+            onUpdate({ ...dorama, season: nextSeason });
+        }
+    }
+  };
+
+  const handleDecrementSeason = (e: React.MouseEvent, dorama: Dorama) => {
+    e.stopPropagation();
+    if (onUpdate && (dorama.season || 1) > 1) {
+        onUpdate({ ...dorama, season: (dorama.season || 1) - 1 });
     }
   };
 
@@ -105,22 +126,20 @@ const DoramaList: React.FC<DoramaListProps> = ({ title, doramas, type, onAdd, on
           {doramas.map((dorama) => (
             <div key={dorama.id} className="bg-white rounded-2xl shadow-sm p-4 border border-gray-200 relative">
               <div className="flex justify-between items-start">
-                  <div className="flex items-start gap-3">
-                      <div className={`p-3 rounded-xl ${type === 'completed' ? 'bg-green-100 text-green-600' : 'bg-primary-100 text-primary-600'}`}>
+                  <div className="flex items-start gap-3 w-full">
+                      <div className={`p-3 rounded-xl flex-shrink-0 ${type === 'completed' ? 'bg-green-100 text-green-600' : 'bg-primary-100 text-primary-600'}`}>
                           {type === 'completed' ? <Check className="w-6 h-6" /> : <Film className="w-6 h-6" />}
                       </div>
-                      <div>
-                          <h3 className="font-bold text-gray-900 text-lg leading-tight">{dorama.title}</h3>
-                          <div className="flex items-center gap-2 mt-1">
-                             <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${type === 'completed' ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                                 {dorama.genre || 'Dorama'}
-                             </span>
-                             {dorama.season && type === 'watching' && (
-                                 <span className="text-[10px] bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">
-                                     T{dorama.season}
+                      <div className="flex-1 min-w-0 pr-8">
+                          <h3 className="font-bold text-gray-900 text-lg leading-tight truncate">{dorama.title}</h3>
+                          
+                          {type !== 'watching' && (
+                              <div className="flex items-center gap-2 mt-1">
+                                 <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${type === 'completed' ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                                     {dorama.genre || 'Dorama'}
                                  </span>
-                             )}
-                          </div>
+                              </div>
+                          )}
                           
                           {type === 'favorites' && dorama.rating && (
                               <div className="mt-2">
@@ -130,7 +149,7 @@ const DoramaList: React.FC<DoramaListProps> = ({ title, doramas, type, onAdd, on
                       </div>
                   </div>
                   
-                  <div className="flex gap-1 -mr-2 -mt-2">
+                  <div className="flex gap-1 absolute top-3 right-3">
                     {onEdit && (
                         <button 
                             type="button"
@@ -152,31 +171,51 @@ const DoramaList: React.FC<DoramaListProps> = ({ title, doramas, type, onAdd, on
                   </div>
               </div>
 
-              {type === 'watching' && (
-                <div className="mt-4">
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="text-sm font-bold text-gray-700">Progresso</span>
-                    <span className="text-sm text-gray-500 font-mono">
-                         {dorama.episodesWatched || 0} / {dorama.totalEpisodes || 16} Ep
-                    </span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2.5 mb-3">
-                    <div 
-                      className="bg-primary-500 h-2.5 rounded-full transition-all duration-500" 
-                      style={{ width: `${Math.min(((dorama.episodesWatched || 0) / (dorama.totalEpisodes || 16)) * 100, 100)}%` }}
-                    ></div>
-                  </div>
-                  
-                  {onUpdate && (
-                      <div className="flex items-center justify-end gap-3 mt-1">
-                          <button onClick={(e) => handleDecrementEpisode(e, dorama)} className="text-gray-400 hover:text-primary-600 p-1 bg-gray-50 rounded-lg border border-gray-200">
-                              <MinusCircle className="w-6 h-6" />
-                          </button>
-                          <button onClick={(e) => handleIncrementEpisode(e, dorama)} className="text-white bg-primary-600 hover:bg-primary-700 p-1 rounded-lg shadow-sm">
-                              <PlusCircle className="w-6 h-6" />
-                          </button>
-                      </div>
-                  )}
+              {type === 'watching' && onUpdate && (
+                <div className="mt-4 flex flex-col gap-3">
+                    {/* Season Controls */}
+                    <div className="flex items-center justify-between bg-gray-50 p-2 rounded-xl border border-gray-100">
+                        <span className="text-xs font-bold text-gray-500 uppercase ml-2 flex items-center gap-1">
+                            <Tv2 className="w-3 h-3" /> Temporada
+                        </span>
+                        <div className="flex items-center gap-3">
+                            <button 
+                                onClick={(e) => handleDecrementSeason(e, dorama)} 
+                                className="w-8 h-8 flex items-center justify-center bg-white border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-100 active:scale-95"
+                            >
+                                <Minus className="w-4 h-4" />
+                            </button>
+                            <span className="text-lg font-black text-gray-800 w-6 text-center">{dorama.season || 1}</span>
+                            <button 
+                                onClick={(e) => handleIncrementSeason(e, dorama)} 
+                                className="w-8 h-8 flex items-center justify-center bg-primary-600 text-white rounded-lg shadow-sm hover:bg-primary-700 active:scale-95"
+                            >
+                                <Plus className="w-4 h-4" />
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Episode Controls */}
+                    <div className="flex items-center justify-between bg-gray-50 p-2 rounded-xl border border-gray-100">
+                        <span className="text-xs font-bold text-gray-500 uppercase ml-2 flex items-center gap-1">
+                            <Clapperboard className="w-3 h-3" /> Episódio
+                        </span>
+                        <div className="flex items-center gap-3">
+                            <button 
+                                onClick={(e) => handleDecrementEpisode(e, dorama)} 
+                                className="w-8 h-8 flex items-center justify-center bg-white border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-100 active:scale-95"
+                            >
+                                <Minus className="w-4 h-4" />
+                            </button>
+                            <span className="text-lg font-black text-gray-800 w-6 text-center">{dorama.episodesWatched || 1}</span>
+                            <button 
+                                onClick={(e) => handleIncrementEpisode(e, dorama)} 
+                                className="w-8 h-8 flex items-center justify-center bg-primary-600 text-white rounded-lg shadow-sm hover:bg-primary-700 active:scale-95"
+                            >
+                                <Plus className="w-4 h-4" />
+                            </button>
+                        </div>
+                    </div>
                 </div>
               )}
             </div>
