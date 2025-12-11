@@ -14,6 +14,12 @@ export interface ClientDBRow {
   created_at: string;
   client_password?: string; // Nova coluna para senha do cliente
   game_progress?: any; // Nova coluna JSONB para salvar progresso dos jogos
+  
+  // Personalization (Stored in JSONB 'preferences' or distinct columns if migrated)
+  // For this version we will map strictly to UI state, assuming persisted via localStorage or future DB update
+  theme_color?: string;
+  background_image?: string;
+  profile_image?: string;
 }
 
 // Raw row for 'app_credentials' table
@@ -76,15 +82,26 @@ export interface Dorama {
   rating?: number; // 1 to 5 hearts
 }
 
+// Subscription Detail Interface - NOVA INTERFACE PARA DATAS INDIVIDUAIS
+export interface SubscriptionDetail {
+    purchaseDate: string;
+    durationMonths: number;
+    isDebtor: boolean;
+}
+
 // User interface used by the App (Mapped from DB)
 export interface User {
   id: string;
   name: string; // Placeholder or derived
   phoneNumber: string;
   
-  // Subscription info flattened from the client row
+  // GLOBAL Fallbacks (legacy support)
   purchaseDate: string;
   durationMonths: number;
+  
+  // Specific Data per Service (New Logic)
+  subscriptionDetails: Record<string, SubscriptionDetail>;
+
   services: string[]; // List of apps (e.g. Viki, Netflix)
   isDebtor: boolean;
   overrideExpiration: boolean; // New field
@@ -96,6 +113,11 @@ export interface User {
   
   // Game Progress
   gameProgress: Record<string, any>;
+
+  // Personalization
+  themeColor?: string;
+  backgroundImage?: string;
+  profileImage?: string;
 }
 
 export interface Message {

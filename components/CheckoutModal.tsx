@@ -1,5 +1,6 @@
+
 import React, { useState, useEffect } from 'react';
-import { X, Check, Copy, ShieldCheck, Zap, ArrowRight, MessageCircle, CalendarClock, Receipt, HelpCircle, AlertCircle, Gift, Rocket } from 'lucide-react';
+import { X, Check, Copy, ShieldCheck, Zap, ArrowRight, MessageCircle, CalendarClock, Receipt, HelpCircle, AlertCircle, Gift, Rocket, Star } from 'lucide-react';
 import { User } from '../types';
 
 interface CheckoutModalProps {
@@ -11,40 +12,101 @@ interface CheckoutModalProps {
 
 const PIX_KEY = "00020126330014br.gov.bcb.pix0111024461983255204000053039865802BR5925Orion Saimon Magalhaes Co6009Sao Paulo62290525REC69361CCAD78A4566579523630467EB"; 
 
+// Simplified Catalog for Benefit Lookup
+const SERVICE_INFO: Record<string, string[]> = {
+    'Viki Pass': ['Doramas Exclusivos', 'Sem Anúncios', 'Alta Qualidade (HD)', 'Acesso Antecipado'],
+    'Kocowa+': ['Shows de K-Pop Ao Vivo', 'Reality Shows Coreanos', 'Legendas Rápidas', '100% Coreano'],
+    'IQIYI': ['C-Dramas e Animes', 'Qualidade 4K e Dolby', 'Catálogo Gigante', 'Sem Anúncios'],
+    'WeTV': ['Séries Tencent Video', 'Mini Doramas', 'Dublagem PT-BR', 'Variedades'],
+    'DramaBox': ['Doramas Curtos', 'Episódios de 1 min', 'Histórias Intensas', 'Ideal para Celular']
+};
+
 const CheckoutModal: React.FC<CheckoutModalProps> = ({ onClose, user, type = 'renewal', targetService }) => {
   const [copied, setCopied] = useState(false);
   const [totalPrice, setTotalPrice] = useState(0);
   const [formattedPrice, setFormattedPrice] = useState('0,00');
   const [isMonthly, setIsMonthly] = useState(true);
+  const [renewalList, setRenewalList] = useState<string[]>([]);
+  const [isUrgent, setIsUrgent] = useState(false);
+
+  // Helper to calculate expiry for a specific service
+  const checkServiceUrgency = (serviceName: string) => {
+      const cleanKey = serviceName.split('|')[0].trim();
+      let details = user.subscriptionDetails ? user.subscriptionDetails[cleanKey] : null;
+      
+      let purchaseDate = details ? new Date(details.purchaseDate) : new Date(user.purchaseDate);
+      if (isNaN(purchaseDate.getTime())) purchaseDate = new Date();
+      
+      let duration = details ? details.durationMonths : (user.durationMonths || 1);
+      
+      const expiryDate = new Date(purchaseDate);
+      expiryDate.setMonth(purchaseDate.getMonth() + duration);
+      
+      const now = new Date();
+      const diffTime = expiryDate.getTime() - now.getTime();
+      const daysLeft = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      
+      // Urgent if <= 3 days remaining (or expired)
+      return daysLeft <= 4;
+  };
 
   useEffect(() => {
-    // Optimization: Ensure services array exists
     const services = user.services || [];
     const duration = user.durationMonths || 1;
-
     setIsMonthly(duration === 1);
 
     if (type === 'new_sub') {
-        // Pricing logic for single new subscription
         let price = 14.90;
         if (targetService && targetService.toLowerCase().includes('viki')) {
             price = 19.90;
         }
         setTotalPrice(price);
         setFormattedPrice(price.toFixed(2).replace('.', ','));
+        setRenewalList([targetService || 'Novo Serviço']);
 
     } else if (duration === 1 && type === 'renewal') {
-        // Renewal Logic (Sum of existing services)
-        let total = 0;
-        services.forEach(service => {
-            if (service.toLowerCase().includes('viki')) {
-                total += 19.90;
+        // Renewal Logic
+        
+        if (targetService) {
+            // Direct click on a specific service card - renew only that one
+            let price = 14.90;
+            if (targetService.toLowerCase().includes('viki')) price = 19.90;
+            setTotalPrice(price);
+            setFormattedPrice(price.toFixed(2).replace('.', ','));
+            setRenewalList([targetService]);
+            setIsUrgent(checkServiceUrgency(targetService));
+        } else {
+            // "Renovar Agora" global button clicked
+            
+            // 1. Identify Urgent Services
+            const urgentServices = services.filter(svc => checkServiceUrgency(svc));
+            
+            let servicesToRenew: string[] = [];
+            
+            if (urgentServices.length > 0) {
+                // If there are urgent services, renew ONLY them
+                servicesToRenew = urgentServices;
+                setIsUrgent(true);
             } else {
-                total += 14.90;
+                // If everything is fine, renew ALL (preventive renewal)
+                servicesToRenew = services;
+                setIsUrgent(false);
             }
-        });
-        setTotalPrice(total);
-        setFormattedPrice(total.toFixed(2).replace('.', ','));
+
+            // 2. Calculate Total
+            let total = 0;
+            servicesToRenew.forEach(service => {
+                if (service.toLowerCase().includes('viki')) {
+                    total += 19.90;
+                } else {
+                    total += 14.90;
+                }
+            });
+            
+            setRenewalList(servicesToRenew);
+            setTotalPrice(total);
+            setFormattedPrice(total.toFixed(2).replace('.', ','));
+        }
     } else {
         setTotalPrice(0);
         setFormattedPrice('---');
@@ -66,8 +128,9 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ onClose, user, type = 're
         const serviceName = targetService || 'Nova Assinatura';
         message = `Olá! Quero assinar o **${serviceName}** adicionalmente. Fiz o Pix de R$ ${formattedPrice}. Segue o comprovante (Cliente: ${user.phoneNumber}):`;
     } else {
+        const itemText = renewalList.join(', ');
         const valueText = isMonthly ? `R$ ${formattedPrice}` : 'o valor combinado';
-        message = `Olá! Fiz um Pix referente a renovação (${user.services.join(', ')}) no valor de ${valueText}. Segue o comprovante para o número ${user.phoneNumber}:`;
+        message = `Olá! Fiz um Pix referente a renovação de **${itemText}** no valor de ${valueText}. Segue o comprovante para o número ${user.phoneNumber}:`;
     }
     
     const url = `https://wa.me/558894875029?text=${encodeURIComponent(message)}`;
@@ -96,8 +159,17 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ onClose, user, type = 're
   const getTitle = () => {
       if (type === 'gift') return 'Caixinha de Natal';
       if (type === 'new_sub') return `Assinar ${targetService || 'Serviço'}`;
+      if (type === 'renewal' && targetService) return `Renovar ${targetService}`;
       return 'Pagamento / Renovação';
   };
+
+  // Get benefits for new sub or single renewal
+  let benefits: string[] = [];
+  if ((type === 'new_sub' || (type === 'renewal' && renewalList.length === 1))) {
+      const svcName = renewalList[0] || targetService || '';
+      const key = Object.keys(SERVICE_INFO).find(k => svcName.includes(k));
+      if (key) benefits = SERVICE_INFO[key];
+  }
 
   return (
     <div className="fixed inset-0 z-[70] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
@@ -126,31 +198,55 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ onClose, user, type = 're
         {/* Content */}
         <div className="overflow-y-auto p-6 space-y-6">
           
-            {/* NEW SUB SUMMARY */}
-            {type === 'new_sub' && (
-                <div className="bg-blue-50 p-5 rounded-2xl border border-blue-100">
-                    <div className="flex justify-between items-center mb-2">
-                        <span className="font-bold text-blue-900 text-lg">{targetService}</span>
-                        <span className="font-extrabold text-2xl text-blue-700">R$ {formattedPrice}</span>
+            {/* SINGLE ITEM SUMMARY (New Sub OR Single Renewal) */}
+            {(type === 'new_sub' || (type === 'renewal' && renewalList.length === 1)) && (
+                <div className="space-y-4">
+                    {/* Benefits Card */}
+                    {benefits.length > 0 && (
+                        <div className="bg-blue-50 p-4 rounded-2xl border border-blue-100">
+                            <p className="text-xs font-bold text-blue-800 uppercase mb-2 flex items-center">
+                                <Star className="w-3 h-3 mr-1" /> Vantagens Inclusas
+                            </p>
+                            <ul className="space-y-2">
+                                {benefits.map((b, i) => (
+                                    <li key={i} className="flex items-center text-sm text-blue-700">
+                                        <Check className="w-4 h-4 mr-2 flex-shrink-0" /> {b}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    )}
+
+                    <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm flex justify-between items-center">
+                        <div>
+                            <span className="font-bold text-gray-900 text-lg block">{renewalList[0] || targetService}</span>
+                            <span className="text-xs text-gray-500">Pagamento único (Mensal)</span>
+                        </div>
+                        <span className="font-extrabold text-3xl text-blue-600">R$ {formattedPrice}</span>
                     </div>
-                    <p className="text-xs text-blue-600 leading-relaxed">
-                        Ao realizar o pagamento, envie o comprovante para ativarmos seu novo acesso imediatamente.
-                    </p>
                 </div>
             )}
 
-            {/* RENEWAL SUMMARY */}
-            {type === 'renewal' && (
+            {/* BUNDLE RENEWAL SUMMARY */}
+            {type === 'renewal' && renewalList.length > 1 && (
                 <div className="space-y-4">
+                    {isUrgent && (
+                        <div className="bg-red-50 p-3 rounded-xl text-center border border-red-100">
+                            <p className="text-xs text-red-700 font-bold">
+                                Atenção: Calculamos o valor apenas das assinaturas que venceram ou vencem em breve.
+                            </p>
+                        </div>
+                    )}
+
                     <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm">
                         <p className="text-xs font-bold text-gray-500 uppercase mb-3 flex items-center">
-                            <CalendarClock className="w-3 h-3 mr-1" /> Detalhes do Plano Atual
+                            <CalendarClock className="w-3 h-3 mr-1" /> Itens a Renovar
                         </p>
                         
                         {isMonthly ? (
                             <>
                                 <ul className="space-y-3 mb-4">
-                                    {user.services.map((service, idx) => {
+                                    {renewalList.map((service, idx) => {
                                         const isViki = service.toLowerCase().includes('viki');
                                         const price = isViki ? 'R$ 19,90' : 'R$ 14,90';
                                         return (
@@ -164,7 +260,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ onClose, user, type = 're
                                     })}
                                 </ul>
                                 <div className="flex justify-between items-center pt-3 border-t-2 border-gray-100">
-                                    <span className="font-bold text-gray-600">Total Sugerido</span>
+                                    <span className="font-bold text-gray-600">Total Renovação</span>
                                     <span className="font-extrabold text-3xl text-green-600">R$ {formattedPrice}</span>
                                 </div>
                             </>

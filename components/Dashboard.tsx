@@ -2,17 +2,31 @@
 import React, { useEffect, useState } from 'react';
 import { User, AppCredential } from '../types';
 import { getAssignedCredential } from '../services/credentialService';
-import { getSystemConfig, SystemConfig } from '../services/clientService';
-import { CheckCircle, AlertCircle, Tv, Copy, RefreshCw, Check, AlertTriangle, Lock, Bot, Wrench, CreditCard, Upload, ChevronRight, HeartHandshake, Star, Cast, Gamepad2, Info, Sparkles, Rocket, ArrowRight, Bell, Megaphone, Calendar, Clock, X, ShoppingBag } from 'lucide-react';
-import NewsCarousel from './NewsCarousel';
+import { getSystemConfig, SystemConfig, updateClientPreferences } from '../services/clientService';
+import { CheckCircle, AlertCircle, Copy, RefreshCw, Check, Lock, CreditCard, ChevronRight, Star, Cast, Gamepad2, Rocket, X, Megaphone, Calendar, Clock, Crown, Zap, Palette, Upload, Image, Sparkles, Gift, AlertTriangle, Loader2, PlayCircle, Smartphone, Tv, ShoppingCart } from 'lucide-react';
 
 interface DashboardProps {
   user: User;
   onOpenSupport: () => void;
-  onOpenDoraminha: () => void; // Deprecated but kept to avoid breaking interface immediately if referenced elsewhere, though usage is removed.
+  onOpenDoraminha: () => void;
   onOpenCheckout: (type: 'renewal' | 'gift' | 'new_sub', targetService?: string) => void;
   onOpenGame: () => void;
 }
+
+const COLORS = [
+    { name: 'Rosa (Padrão)', value: '#ec4899', class: 'bg-pink-600', gradient: 'from-pink-500 to-pink-700', bgClass: 'bg-pink-50' },
+    { name: 'Roxo', value: '#9333ea', class: 'bg-purple-600', gradient: 'from-purple-500 to-purple-700', bgClass: 'bg-purple-50' },
+    { name: 'Azul', value: '#2563eb', class: 'bg-blue-600', gradient: 'from-blue-500 to-blue-700', bgClass: 'bg-blue-50' },
+    { name: 'Verde', value: '#16a34a', class: 'bg-green-600', gradient: 'from-green-500 to-green-700', bgClass: 'bg-green-50' },
+    { name: 'Laranja', value: '#ea580c', class: 'bg-orange-600', gradient: 'from-orange-500 to-orange-700', bgClass: 'bg-orange-50' },
+    { name: 'Vermelho', value: '#dc2626', class: 'bg-red-600', gradient: 'from-red-500 to-red-700', bgClass: 'bg-red-50' },
+    { name: 'Preto', value: '#111827', class: 'bg-gray-900', gradient: 'from-gray-800 to-black', bgClass: 'bg-gray-900' },
+    // Novas cores
+    { name: 'Ciano', value: '#06b6d4', class: 'bg-cyan-600', gradient: 'from-cyan-500 to-cyan-700', bgClass: 'bg-cyan-50' },
+    { name: 'Indigo', value: '#4f46e5', class: 'bg-indigo-600', gradient: 'from-indigo-500 to-indigo-700', bgClass: 'bg-indigo-50' },
+    { name: 'Rose', value: '#e11d48', class: 'bg-rose-600', gradient: 'from-rose-500 to-rose-700', bgClass: 'bg-rose-50' },
+    { name: 'Violeta', value: '#7c3aed', class: 'bg-violet-600', gradient: 'from-violet-500 to-violet-700', bgClass: 'bg-violet-50' },
+];
 
 const SERVICE_CATALOG = [
     {
@@ -20,101 +34,200 @@ const SERVICE_CATALOG = [
         name: 'Viki Pass',
         benefits: ['Doramas Exclusivos', 'Sem Anúncios', 'Alta Qualidade (HD)', 'Acesso Antecipado'],
         price: 'R$ 19,90',
-        color: 'from-blue-500 to-cyan-500'
+        color: 'from-blue-600 to-cyan-500',
+        iconColor: 'bg-blue-600',
+        shadow: 'shadow-blue-200'
     },
     {
         id: 'Kocowa+',
         name: 'Kocowa+',
         benefits: ['Shows de K-Pop Ao Vivo', 'Reality Shows Coreanos', 'Legendas Super Rápidas', '100% Coreano'],
         price: 'R$ 14,90',
-        color: 'from-yellow-400 to-orange-400'
+        color: 'from-purple-600 to-indigo-600',
+        iconColor: 'bg-purple-600',
+        shadow: 'shadow-purple-200'
     },
     {
         id: 'IQIYI',
         name: 'IQIYI',
         benefits: ['Doramas Chineses (C-Drama)', 'Animes e BLs Exclusivos', 'Qualidade 4K e Dolby', 'Catálogo Gigante'],
         price: 'R$ 14,90',
-        color: 'from-green-500 to-emerald-600'
+        color: 'from-green-600 to-emerald-500',
+        iconColor: 'bg-green-600',
+        shadow: 'shadow-green-200'
     },
     {
         id: 'WeTV',
         name: 'WeTV',
         benefits: ['Séries Tencent Video', 'Mini Doramas Viciantes', 'Variedades Asiáticas', 'Dublagem em Português'],
         price: 'R$ 14,90',
-        color: 'from-orange-500 to-red-500'
+        color: 'from-orange-500 to-red-500',
+        iconColor: 'bg-orange-500',
+        shadow: 'shadow-orange-200'
     },
     {
         id: 'DramaBox',
         name: 'DramaBox',
         benefits: ['Doramas Verticais (Shorts)', 'Episódios de 1 minuto', 'Histórias Intensas', 'Ideal para Celular'],
         price: 'R$ 14,90',
-        color: 'from-pink-500 to-rose-600'
+        color: 'from-pink-500 to-rose-500',
+        iconColor: 'bg-pink-500',
+        shadow: 'shadow-pink-200'
     }
 ];
 
+const getCredentialStatus = (serviceName: string, day: number) => {
+    const name = serviceName.toLowerCase();
+    if (name.includes('viki')) {
+        const daysLeft = 14 - day;
+        if (day < 13) return { color: 'bg-blue-100 text-blue-700', text: `✨ Sua conta renova em ${daysLeft} dias!` };
+        if (day === 13) return { color: 'bg-yellow-100 text-yellow-800', text: `⚠️ Amanhã trocamos a senha!` };
+        if (day === 14) return { color: 'bg-orange-100 text-orange-800', text: `⏰ Último dia! Nova conta em breve.` };
+        return { color: 'bg-red-100 text-red-800', text: `🚫 Aguardando nova conta...` };
+    }
+    if (name.includes('kocowa')) {
+        const daysLeft = 30 - day;
+        if (day < 20) return { color: 'bg-blue-100 text-blue-700', text: `🦋 Tudo tranquilo! Renova em ${daysLeft} dias.` };
+        if (day >= 20 && day < 25) return { color: 'bg-yellow-100 text-yellow-800', text: `📅 Ciclo acabando em ${daysLeft} dias.` };
+        return { color: 'bg-red-100 text-red-800', text: `🔄 Renovação iminente.` };
+    }
+    if (name.includes('iqiyi')) {
+        const daysLeft = 30 - day;
+        if (day < 29) return { color: 'bg-blue-100 text-blue-700', text: `🎋 Curta seus doramas! Renova em ${daysLeft} dias.` };
+        return { color: 'bg-red-100 text-red-800', text: `🐉 Trocando a conta em breve!` };
+    }
+    return { color: 'bg-gray-100 text-gray-700', text: `Dia ${day} de uso.` };
+};
+
+const compressImage = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = (event) => {
+            const img = document.createElement('img');
+            img.src = event.target?.result as string;
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                const MAX_WIDTH = 800;
+                const MAX_HEIGHT = 800;
+                let width = img.width;
+                let height = img.height;
+                if (width > height) {
+                    if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; }
+                } else {
+                    if (height > MAX_HEIGHT) { width *= MAX_HEIGHT / height; height = MAX_HEIGHT; }
+                }
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx?.drawImage(img, 0, 0, width, height);
+                resolve(canvas.toDataURL('image/jpeg', 0.7));
+            };
+            img.onerror = (err) => reject(err);
+        };
+        reader.onerror = (err) => reject(err);
+    });
+};
+
+const updateLocalSession = (updates: Partial<User>) => {
+    const session = localStorage.getItem('eudorama_session');
+    if (session) {
+        const current = JSON.parse(session);
+        localStorage.setItem('eudorama_session', JSON.stringify({ ...current, ...updates }));
+    }
+};
+
 const Dashboard: React.FC<DashboardProps> = ({ user, onOpenSupport, onOpenCheckout, onOpenGame }) => {
-  const [assignedCredentials, setAssignedCredentials] = useState<{service: string, cred: AppCredential | null, alert: string | null}[]>([]);
+  const [assignedCredentials, setAssignedCredentials] = useState<{service: string, cred: AppCredential | null, alert: string | null, daysActive: number}[]>([]);
   const [loadingCreds, setLoadingCreds] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [showStarInfo, setShowStarInfo] = useState(false);
   const [sysConfig, setSysConfig] = useState<SystemConfig | null>(null);
-  
-  // Service Detail Modal State
   const [selectedService, setSelectedService] = useState<any | null>(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  
+  const [showPalette, setShowPalette] = useState(false);
+  const [themeColor, setThemeColor] = useState(user.themeColor || COLORS[0].class);
+  const [bgImage, setBgImage] = useState(user.backgroundImage || '');
+  const [profileImage, setProfileImage] = useState(user.profileImage || '');
 
-  // Date Logic
-  let purchaseDate = new Date(user.purchaseDate);
-  if (isNaN(purchaseDate.getTime())) purchaseDate = new Date();
-  
-  const expiryDate = new Date(purchaseDate);
-  expiryDate.setMonth(purchaseDate.getMonth() + user.durationMonths);
-  
-  const now = new Date();
-  const isExpired = now > expiryDate;
-  
-  // Logic: Active if (Not Expired AND Not Debtor) OR (Admin Overrides Expiration)
-  const isActive = (!isExpired && !user.isDebtor) || user.overrideExpiration;
-  
-  const diffTime = expiryDate.getTime() - now.getTime();
-  const daysLeft = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  
-  // Alerts Logic
-  const isCritical = !isExpired && daysLeft <= 2; // Critical warning (2 days or less)
-  const isExpiringSoon = !isExpired && daysLeft <= 5 && daysLeft > 2; // Warning (5 days)
-
-  // Check if it is a Demo User (Starts with 99999) OR Test User (00000000000)
+  const getServiceName = (serviceString: string) => serviceString.split('|')[0].trim();
   const isDemoUser = user.phoneNumber.startsWith('99999') || user.phoneNumber === '00000000000';
-
-  // Stars Logic
-  const completedCount = user.completed?.length || 0;
-  const starsCount = Math.floor(completedCount / 10);
-  const nextStarTarget = (starsCount + 1) * 10;
-  const progressToNextStar = completedCount % 10;
-
-  // Filter Missing Services
-  const userServicesLower = user.services.map(s => s.toLowerCase());
+  const starsCount = Math.floor((user.completed?.length || 0) / 10);
+  const userServicesLower = user.services.map(s => getServiceName(s).toLowerCase());
   const missingServices = SERVICE_CATALOG.filter(s => !userServicesLower.some(us => us.includes(s.id.toLowerCase())));
+
+  const activeTheme = COLORS.find(c => c.class === themeColor) || COLORS[0];
+  const bgStyle = bgImage ? { backgroundImage: `url(${bgImage})`, backgroundSize: 'cover', backgroundPosition: 'center', backgroundAttachment: 'fixed' } : {}; 
+  const containerClass = bgImage ? 'bg-black/50 min-h-screen pb-32 backdrop-blur-sm' : `${activeTheme.bgClass} min-h-screen pb-32 transition-colors duration-500`;
+
+  const calculateSubscriptionStatus = (serviceName: string) => {
+      const cleanKey = getServiceName(serviceName);
+      let details = user.subscriptionDetails ? user.subscriptionDetails[cleanKey] : null;
+      let purchaseDate = details ? new Date(details.purchaseDate) : new Date(user.purchaseDate);
+      if (isNaN(purchaseDate.getTime())) purchaseDate = new Date();
+      let duration = details ? details.durationMonths : (user.durationMonths || 1);
+      const expiryDate = new Date(purchaseDate);
+      expiryDate.setMonth(purchaseDate.getMonth() + duration);
+      const now = new Date();
+      const diffTime = expiryDate.getTime() - now.getTime();
+      const daysLeft = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      const isExpired = daysLeft < 0;
+      const isGracePeriod = isExpired && daysLeft >= -3;
+      const isBlocked = user.isDebtor || (isExpired && !isGracePeriod && !user.overrideExpiration);
+      return { expiryDate, daysLeft, isExpired, isGracePeriod, isBlocked };
+  };
+
+  const hasAnyBlockedService = user.services.some(svc => calculateSubscriptionStatus(svc).isBlocked);
+  const hasAnyExpiredService = user.services.some(svc => calculateSubscriptionStatus(svc).isExpired);
 
   useEffect(() => {
     const loadCreds = async () => {
-      if (!isActive) return; // Don't load creds if not active
-      
       setLoadingCreds(true);
-      
-      // Load System Config first
       const conf = await getSystemConfig();
       setSysConfig(conf);
-
-      const results = await Promise.all(user.services.map(async (service) => {
-        // If demo user, don't even fetch from DB to avoid wasting resources, or fetch to show structure but mask later
-        const result = await getAssignedCredential(user, service);
-        return { service, cred: result.credential, alert: result.alert };
+      const results = await Promise.all(user.services.map(async (rawService) => {
+        const name = getServiceName(rawService);
+        const result = await getAssignedCredential(user, name);
+        return { service: rawService, cred: result.credential, alert: result.alert, daysActive: result.daysActive || 0 };
       }));
       setAssignedCredentials(results);
       setLoadingCreds(false);
     };
     loadCreds();
-  }, [user, isActive]);
+  }, [user]);
+
+  const handleThemeChange = async (colorClass: string) => {
+      setThemeColor(colorClass);
+      updateLocalSession({ themeColor: colorClass });
+      await updateClientPreferences(user.phoneNumber, { themeColor: colorClass });
+  };
+
+  const handleBgUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (file) {
+          setUploadingImage(true);
+          try {
+              const compressedBase64 = await compressImage(file);
+              setBgImage(compressedBase64);
+              updateLocalSession({ backgroundImage: compressedBase64 });
+              await updateClientPreferences(user.phoneNumber, { backgroundImage: compressedBase64 });
+          } catch (error) { console.error(error); } finally { setUploadingImage(false); }
+      }
+  };
+
+  const handleProfileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (file) {
+          setUploadingImage(true);
+          try {
+              const compressedBase64 = await compressImage(file);
+              setProfileImage(compressedBase64);
+              updateLocalSession({ profileImage: compressedBase64 });
+              await updateClientPreferences(user.phoneNumber, { profileImage: compressedBase64 });
+          } catch (error) { console.error(error); } finally { setUploadingImage(false); }
+      }
+  };
 
   const copyToClipboard = (text: string, id: string) => {
     navigator.clipboard.writeText(text);
@@ -122,30 +235,18 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onOpenSupport, onOpenChecko
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  const formatDate = (date: Date) => {
-      try { return date.toLocaleDateString('pt-BR'); } catch (e) { return 'Data Inválida'; }
-  };
-  
-  const handleServiceClick = (serviceName: string) => {
-      const details = SERVICE_CATALOG.find(s => 
-          serviceName.toLowerCase().includes(s.id.toLowerCase())
-      );
-      
-      if (details) {
-          setSelectedService(details);
-      } else {
-          // Fallback generic info
-          setSelectedService({
-              name: serviceName,
-              benefits: ['Acesso total ao catálogo', 'Assista em alta qualidade'],
-              price: 'Consulte',
-              color: 'from-gray-500 to-gray-700'
-          });
-      }
-  };
-  
-  const whatsappProofLink = `https://wa.me/558894875029?text=${encodeURIComponent(`Olá! Segue meu comprovante de pagamento (Print ou PDF) para o telefone ${user.phoneNumber}.`)}`;
+  const formatDate = (date: Date) => { try { return date.toLocaleDateString('pt-BR'); } catch (e) { return 'Data Inválida'; } };
 
+  const handleServiceClick = (rawService: string) => {
+      const name = getServiceName(rawService);
+      const details = SERVICE_CATALOG.find(s => name.toLowerCase().includes(s.id.toLowerCase()));
+      const { expiryDate } = calculateSubscriptionStatus(rawService);
+      const cleanKey = getServiceName(rawService);
+      const specPurchase = user.subscriptionDetails?.[cleanKey]?.purchaseDate ? new Date(user.subscriptionDetails[cleanKey].purchaseDate) : new Date(user.purchaseDate);
+      const modalData = details ? { ...details, customExpiry: expiryDate, customPurchase: specPurchase } : { name: name, benefits: ['Acesso total'], price: 'R$ 14,90', color: 'from-gray-500 to-gray-700', customExpiry: expiryDate, customPurchase: specPurchase };
+      setSelectedService(modalData);
+  };
+  
   const getBannerColor = (type: string) => {
       switch(type) {
           case 'warning': return 'bg-yellow-50 text-yellow-800 border-yellow-200';
@@ -155,396 +256,178 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onOpenSupport, onOpenChecko
       }
   };
 
-  // --- BLOCKED / EXPIRED SCREEN ---
-  if (!isActive) {
-      return (
-          <div className="flex flex-col items-center justify-center pt-10 pb-20 px-4 text-center space-y-6 animate-fade-in bg-white h-screen">
-              <div className="bg-red-50 p-6 rounded-full shadow-inner animate-pulse">
-                  <Lock className="w-16 h-16 text-red-600" />
-              </div>
-              
-              <div className="space-y-2">
-                  <h1 className="text-3xl font-extrabold text-gray-900">Acesso Pausado</h1>
-                  <p className="text-gray-600 px-4">
-                      {user.isDebtor ? 'Sua conta está temporariamente bloqueada.' : 'Sua assinatura venceu. Renove para continuar assistindo.'}
-                  </p>
-              </div>
-
-              <div className="bg-gray-50 p-6 rounded-2xl shadow-sm border border-gray-200 w-full max-w-sm mx-auto">
-                  <div className="flex justify-between items-center mb-3">
-                      <span className="text-xs font-bold text-gray-500 uppercase">Vencimento</span>
-                      <span className="text-lg font-bold text-red-600">{formatDate(expiryDate)}</span>
-                  </div>
-                  <div className="w-full bg-gray-200 h-2 rounded-full overflow-hidden mb-4">
-                      <div className="bg-red-500 h-full w-full"></div>
-                  </div>
-                  
-                  <div className="space-y-3">
-                      <button 
-                          onClick={() => onOpenCheckout('renewal')}
-                          className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3.5 rounded-xl shadow-lg shadow-green-200 transition-transform active:scale-95 flex items-center justify-center"
-                      >
-                          <RefreshCw className="w-5 h-5 mr-2" /> Renovar Agora
-                      </button>
-                      
-                      <a 
-                          href={whatsappProofLink}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="w-full bg-white border-2 border-green-600 text-green-700 font-bold py-3.5 rounded-xl hover:bg-green-50 transition-colors flex items-center justify-center"
-                      >
-                          <Upload className="w-5 h-5 mr-2" /> Enviar Comprovante
-                      </a>
-                  </div>
-                  
-                  <div className="mt-4 bg-yellow-50 p-3 rounded-lg border border-yellow-100">
-                      <p className="text-[10px] text-yellow-800 font-bold leading-tight">
-                         ⚠️ ATENÇÃO: É <span className="underline">obrigatório</span> enviar o comprovante (Print ou PDF) no WhatsApp após pagar para liberar seu acesso.
-                      </p>
-                  </div>
-              </div>
-          </div>
-      );
-  }
-
-  // --- ACTIVE DASHBOARD (REFORMULADO) ---
   return (
-    <div className="space-y-6 pb-32 relative">
-      
-      {/* HEADER COMPACTO E MODERNO */}
-      <div className="flex justify-between items-center px-1 pt-2">
-          <div>
-              <h1 className="text-2xl font-black text-gray-900 tracking-tight">Olá, {user.name}</h1>
-              <p className="text-xs text-gray-500 font-medium">Bem-vinda de volta!</p>
+    <div style={bgStyle}>
+      <div className={containerClass}>
+          
+      {/* HEADER */}
+      <div className="flex justify-between items-center px-5 pt-6 pb-2">
+          <div className="flex items-center gap-4">
+              <div className="relative group">
+                  <div className={`w-16 h-16 rounded-full overflow-hidden border-4 border-white shadow-lg cursor-pointer transform group-hover:scale-105 transition-transform relative ring-2 ring-pink-300`}>
+                      <img src={profileImage || `https://ui-avatars.com/api/?name=${user.name}&background=random`} alt="Profile" className="w-full h-full object-cover" />
+                      {uploadingImage && <div className="absolute inset-0 bg-black/50 flex items-center justify-center"><Loader2 className="w-6 h-6 text-white animate-spin" /></div>}
+                      <label className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center cursor-pointer transition-opacity rounded-full"><Upload className="w-6 h-6 text-white" /><input type="file" className="hidden" accept="image/*" onChange={handleProfileUpload} /></label>
+                  </div>
+              </div>
+              <div className="flex flex-col">
+                  {/* User Name with Styled Font and Animation */}
+                  <h1 className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500 tracking-tighter drop-shadow-sm flex items-center truncate max-w-[200px] font-serif italic hover:scale-105 transition-transform duration-300">
+                    {user.name || 'Dorameira'} <Sparkles className="w-5 h-5 ml-1 text-yellow-400 fill-yellow-400 animate-spin-slow flex-shrink-0"/>
+                  </h1>
+                  
+                  {/* Animated VIP Badge */}
+                  <div className="relative mt-1 w-max group">
+                      <div className="absolute -inset-0.5 bg-gradient-to-r from-pink-600 to-purple-600 rounded-full blur opacity-50 group-hover:opacity-100 transition duration-200 animate-pulse"></div>
+                      <div className="relative bg-white px-3 py-1 rounded-full flex items-center gap-1 border border-pink-100 shadow-sm">
+                          <Crown className="w-3 h-3 text-yellow-500 fill-yellow-500 animate-[bounce_2s_infinite]" />
+                          <span className="text-[10px] font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-pink-600 to-purple-600 uppercase tracking-widest">
+                              Membro VIP
+                          </span>
+                      </div>
+                  </div>
+              </div>
           </div>
           
-          {/* STARS BADGE - SUPER ANIMATED */}
-          <div 
-              className="bg-white shadow-md rounded-2xl p-2 flex items-center gap-2 border border-gray-100 cursor-pointer active:scale-95 transition-transform relative group"
-              onClick={() => setShowStarInfo(true)}
-          >
-              <div className="bg-yellow-100 p-2 rounded-full animate-bounce shadow-[0_0_15px_rgba(250,204,21,0.6)]">
-                  <Star className="w-5 h-5 text-yellow-600 fill-yellow-500" />
+          <div className="flex flex-col items-end gap-2">
+              <div className="flex gap-2">
+                  <button onClick={() => setShowPalette(!showPalette)} className="p-2.5 bg-white rounded-xl shadow-md hover:bg-gray-50 transition-all text-gray-500 border border-gray-100 active:scale-95"><Palette className="w-5 h-5" /></button>
+                  <div className="bg-gradient-to-br from-yellow-100 to-yellow-50 shadow-md rounded-xl p-2.5 flex items-center gap-2 border border-yellow-200 cursor-pointer active:scale-95 transition-transform group" onClick={() => setShowStarInfo(true)}>
+                      <Star className="w-9 h-9 text-yellow-500 fill-yellow-400 group-hover:scale-110 transition-transform animate-[bounce_2s_infinite]" />
+                      <span className="text-xl font-black text-yellow-800 leading-none">{starsCount}</span>
+                  </div>
               </div>
-              <div>
-                  <span className="text-lg font-black text-gray-800 leading-none block">{starsCount}</span>
-                  <span className="text-[8px] uppercase font-bold text-gray-400 leading-none">Estrelas</span>
-              </div>
-              {/* Badge Notification hint */}
-              <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-white animate-pulse"></div>
           </div>
       </div>
-      
-      {/* STAR INFO MODAL */}
+
+      {/* GAMIFICATION MODAL */}
       {showStarInfo && (
-          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
-              <div className="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl relative border-4 border-yellow-100">
-                  <button 
-                      onClick={() => setShowStarInfo(false)}
-                      className="absolute top-4 right-4 p-2 bg-gray-100 rounded-full text-gray-500 hover:bg-gray-200"
-                  >
-                      <X className="w-5 h-5" />
-                  </button>
-                  
-                  <div className="text-center space-y-4">
-                      <div className="w-20 h-20 bg-yellow-100 rounded-full flex items-center justify-center mx-auto shadow-[0_0_30px_rgba(250,204,21,0.5)] animate-pulse">
-                          <Star className="w-10 h-10 text-yellow-600 fill-yellow-500 animate-spin-slow" />
-                      </div>
-                      
-                      <h2 className="text-2xl font-black text-gray-900">Sistema de Estrelas</h2>
-                      
-                      <div className="bg-yellow-50 p-4 rounded-2xl border border-yellow-200 text-left space-y-3">
-                          <p className="text-sm font-bold text-yellow-800 flex items-start">
-                              <span className="bg-yellow-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs mr-2 flex-shrink-0 mt-0.5">1</span>
-                              Como ganhar?
-                          </p>
-                          <p className="text-xs text-yellow-700 pl-7">
-                              A cada <strong>10 doramas</strong> que você move para a lista de "Finalizados" (Fim), você ganha 1 Estrela Brilhante!
-                          </p>
-                      </div>
-
-                      <div className="pt-2">
-                          <p className="text-xs text-gray-400 font-bold uppercase mb-1">Seu Progresso Atual</p>
-                          <div className="w-full bg-gray-100 h-3 rounded-full overflow-hidden">
-                              <div 
-                                  className="bg-yellow-500 h-full transition-all duration-1000" 
-                                  style={{width: `${(progressToNextStar / 10) * 100}%`}}
-                              ></div>
-                          </div>
-                          <p className="text-xs text-gray-500 mt-1">Faltam {10 - progressToNextStar} doramas para a próxima estrela!</p>
-                      </div>
-
-                      <button 
-                          onClick={() => setShowStarInfo(false)}
-                          className="w-full bg-yellow-500 text-white font-bold py-3 rounded-xl hover:bg-yellow-600 transition-transform active:scale-95 shadow-lg shadow-yellow-200"
-                      >
-                          Entendi!
-                      </button>
+          <div className="fixed inset-0 z-[90] bg-black/60 backdrop-blur-sm flex items-center justify-center p-6 animate-fade-in">
+              <div className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl relative border-4 border-yellow-300">
+                  <button onClick={() => setShowStarInfo(false)} className="absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-full"><X className="w-5 h-5 text-gray-400"/></button>
+                  <div className="text-center">
+                      <div className="bg-yellow-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4 animate-bounce"><Star className="w-10 h-10 text-yellow-600 fill-yellow-500" /></div>
+                      <h3 className="text-2xl font-black text-gray-900 mb-2">Suas Estrelas!</h3>
+                      <p className="text-gray-600 mb-6 text-sm leading-relaxed">Você ganha <strong>1 Estrela</strong> a cada <strong>10 Doramas</strong> que marcar como "Finalizado".<br/><br/>Junte estrelas para desbloquear surpresas no futuro! Continue assistindo! 🎬✨</p>
+                      <button onClick={() => setShowStarInfo(false)} className="w-full bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-3 rounded-xl shadow-lg transition-transform active:scale-95">Entendi, vou maratonar!</button>
                   </div>
+              </div>
+          </div>
+      )}
+
+      {/* THEME PICKER DRAWER */}
+      {showPalette && (
+          <div className="mx-4 mt-2 bg-white p-4 rounded-2xl shadow-xl border-2 border-gray-100 animate-fade-in-up relative z-20">
+              <div className="flex justify-between items-center mb-3"><h3 className="font-bold text-gray-800 text-sm">Personalizar Fundo</h3><button onClick={() => setShowPalette(false)}><X className="w-4 h-4 text-gray-400"/></button></div>
+              <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
+                  {COLORS.map(c => <button key={c.name} onClick={() => handleThemeChange(c.class)} className={`w-10 h-10 rounded-full flex-shrink-0 border-2 shadow-lg transition-all duration-300 ${c.class} ${themeColor === c.class ? 'border-white ring-2 ring-gray-900 scale-110 brightness-75' : 'border-transparent hover:scale-105'}`} title={c.name}></button>)}
+                  <label className="w-10 h-10 rounded-full flex-shrink-0 border-2 border-gray-200 flex items-center justify-center cursor-pointer bg-gray-50 hover:bg-gray-100" title="Enviar Foto Fundo">{uploadingImage ? <Loader2 className="w-5 h-5 text-pink-500 animate-spin" /> : <Image className="w-5 h-5 text-gray-500" />}<input type="file" className="hidden" accept="image/*" onChange={handleBgUpload} disabled={uploadingImage} /></label>
+                  {bgImage && <button onClick={() => {setBgImage(''); updateClientPreferences(user.phoneNumber, {backgroundImage: ''}); updateLocalSession({backgroundImage: ''}); }} className="text-xs text-red-500 font-bold ml-2 whitespace-nowrap">Remover Foto</button>}
               </div>
           </div>
       )}
       
       {/* SERVICE DETAIL MODAL */}
       {selectedService && (
-          <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
+          <div className="fixed inset-0 z-[80] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
               <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl relative overflow-hidden flex flex-col">
-                  {/* Color Header */}
-                  <div className={`h-32 bg-gradient-to-r ${selectedService.color} relative p-6 flex flex-col justify-end`}>
-                      <button 
-                          onClick={() => setSelectedService(null)}
-                          className="absolute top-4 right-4 p-2 bg-white/20 hover:bg-white/40 rounded-full text-white backdrop-blur-md"
-                      >
-                          <X className="w-5 h-5" />
-                      </button>
-                      <h2 className="text-3xl font-black text-white drop-shadow-md">{selectedService.name}</h2>
-                  </div>
-                  
+                  <div className={`h-32 bg-gradient-to-r ${selectedService.color} relative p-6 flex flex-col justify-end`}><button onClick={() => setSelectedService(null)} className="absolute top-4 right-4 p-2 bg-white/20 hover:bg-white/40 rounded-full text-white backdrop-blur-md"><X className="w-5 h-5" /></button><h2 className="text-3xl font-black text-white drop-shadow-md">{selectedService.name}</h2></div>
                   <div className="p-6 space-y-6">
-                      
-                      {/* DATES INFO */}
                       <div className="grid grid-cols-2 gap-3">
-                           <div className="bg-gray-50 p-3 rounded-2xl border border-gray-100 text-center">
-                               <p className="text-[10px] text-gray-400 font-bold uppercase mb-1 flex items-center justify-center gap-1">
-                                   <Calendar className="w-3 h-3"/> Data da Compra
-                               </p>
-                               <p className="text-sm font-black text-gray-800">{formatDate(purchaseDate)}</p>
-                           </div>
-                           <div className="bg-gray-50 p-3 rounded-2xl border border-gray-100 text-center">
-                               <p className="text-[10px] text-gray-400 font-bold uppercase mb-1 flex items-center justify-center gap-1">
-                                   <Clock className="w-3 h-3"/> Vencimento
-                               </p>
-                               <p className={`text-sm font-black ${isCritical ? 'text-red-600' : 'text-gray-800'}`}>{formatDate(expiryDate)}</p>
-                           </div>
+                           <div className="bg-gray-50 p-3 rounded-2xl border border-gray-100 text-center"><p className="text-[10px] text-gray-400 font-bold uppercase mb-1 flex items-center justify-center gap-1"><Calendar className="w-3 h-3"/> Compra</p><p className="text-sm font-black text-gray-800">{formatDate(selectedService.customPurchase)}</p></div>
+                           <div className="bg-gray-50 p-3 rounded-2xl border border-gray-100 text-center"><p className="text-[10px] text-gray-400 font-bold uppercase mb-1 flex items-center justify-center gap-1"><Clock className="w-3 h-3"/> Vence em</p><p className={`text-sm font-black text-gray-800`}>{formatDate(selectedService.customExpiry)}</p></div>
                       </div>
-
-                      <div>
-                          <h3 className="text-sm font-bold text-gray-400 uppercase mb-3">Benefícios Inclusos</h3>
-                          <ul className="space-y-3">
-                              {selectedService.benefits && selectedService.benefits.map((benefit: string, idx: number) => (
-                                  <li key={idx} className="flex items-start text-gray-700 font-medium text-sm">
-                                      <CheckCircle className="w-5 h-5 text-green-500 mr-2 flex-shrink-0" />
-                                      {benefit}
-                                  </li>
-                              ))}
-                          </ul>
-                      </div>
-                      
-                      <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100 flex justify-between items-center">
-                          <span className="text-xs font-bold text-gray-500 uppercase">Preço Individual</span>
-                          <span className="text-xl font-black text-gray-900">{selectedService.price}</span>
-                      </div>
-
-                      <div className="pt-2">
-                          <p className="text-[10px] text-center text-gray-400 mb-3">Este serviço faz parte do seu pacote atual.</p>
-                          <button 
-                              onClick={() => setSelectedService(null)}
-                              className="w-full bg-gray-900 text-white font-bold py-3.5 rounded-xl hover:bg-black transition-transform active:scale-95"
-                          >
-                              Fechar Detalhes
-                          </button>
-                      </div>
+                      <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100 flex justify-between items-center"><span className="text-xs font-bold text-gray-500 uppercase">Mensal</span><span className="text-xl font-black text-gray-900">{selectedService.price}</span></div>
+                      <button onClick={() => setSelectedService(null)} className="w-full bg-gray-900 text-white font-bold py-3.5 rounded-xl hover:bg-black transition-transform active:scale-95">Fechar Detalhes</button>
                   </div>
               </div>
           </div>
       )}
 
-      {/* SYSTEM GLOBAL BANNER */}
-      {sysConfig?.bannerActive && sysConfig.bannerText && (
-          <div className={`mx-2 p-4 rounded-xl border flex items-start gap-3 shadow-sm ${getBannerColor(sysConfig.bannerType)}`}>
-              <Megaphone className="w-5 h-5 flex-shrink-0 mt-0.5" />
-              <div>
-                  <p className="font-bold text-sm leading-tight">{sysConfig.bannerText}</p>
-              </div>
-          </div>
+      {/* GLOBAL DEBT WARNING BANNER */}
+      {hasAnyExpiredService && (
+          <div className="mx-4 mt-4 p-4 rounded-xl border border-red-200 bg-red-50 flex items-start gap-3 shadow-md"><AlertTriangle className="w-6 h-6 text-red-600 flex-shrink-0" /><div><p className="font-black text-red-800 text-sm uppercase mb-1">Atenção, Dorameira!</p><p className="text-xs text-red-700 font-medium leading-relaxed">Algumas assinaturas venceram. Você tem um <strong>prazo de tolerância de 3 dias</strong> para ver os logins vencidos. Após isso, o acesso será bloqueado até a renovação.</p><button onClick={() => onOpenCheckout('renewal')} className="mt-2 text-xs bg-red-600 text-white px-3 py-1.5 rounded-lg font-bold shadow-sm active:scale-95 hover:bg-red-700 transition-colors">Renovar Agora</button></div></div>
       )}
 
-      {/* CARROSSEL DE NOTÍCIAS (HERO SECTION) */}
-      <div className="px-1">
-          <NewsCarousel />
-      </div>
+      {/* SYSTEM BANNER */}
+      {sysConfig?.bannerActive && sysConfig.bannerText && (
+          <div className={`mx-4 p-4 rounded-xl border flex items-start gap-3 shadow-sm animate-pulse-slow ${getBannerColor(sysConfig.bannerType)}`}><Megaphone className="w-5 h-5 flex-shrink-0 mt-0.5" /><div><p className="font-bold text-sm leading-tight">{sysConfig.bannerText}</p></div></div>
+      )}
 
-      <div className="px-2 space-y-6">
+      <div className="px-4 space-y-6 pt-4">
         
-        {/* STATUS DA ASSINATURA (CARTÃO DETALHADO) */}
-        <div className={`rounded-3xl p-5 shadow-sm border-2 overflow-hidden relative ${isCritical ? 'bg-red-50 border-red-200' : (isExpiringSoon ? 'bg-orange-50 border-orange-200' : 'bg-white border-gray-100')}`}>
-             
-             {/* Critical Alert Overlay */}
-             {isCritical && (
-                 <div className="absolute top-0 left-0 w-full bg-red-600 text-white text-[10px] font-bold uppercase py-1 text-center animate-pulse">
-                     ⚠️ Ação Necessária: Vence em menos de 2 dias!
-                 </div>
-             )}
-
-             <div className="flex justify-between items-start mb-4 mt-2">
+        {/* SUAS ASSINATURAS */}
+        <div className={`rounded-3xl p-5 shadow-lg border relative bg-white/95 backdrop-blur-md ${hasAnyBlockedService ? 'border-red-200' : 'border-white'}`}>
+             <div className="flex justify-between items-start mb-4">
                  <div className="flex items-center gap-3">
-                     <div className={`p-2.5 rounded-xl ${isCritical ? 'bg-red-200 text-red-700' : (isExpiringSoon ? 'bg-orange-200 text-orange-700' : 'bg-green-100 text-green-700')}`}>
-                         <CreditCard className="w-6 h-6" />
-                     </div>
-                     <div>
-                         <h3 className="font-bold text-gray-900 text-lg leading-none">Sua Assinatura</h3>
-                         <p className={`text-xs font-bold mt-1 ${isCritical ? 'text-red-600' : (isExpiringSoon ? 'text-orange-600' : 'text-green-600')}`}>
-                             {isCritical ? 'Vencimento Crítico' : (isExpiringSoon ? 'Renovação Próxima' : 'Status Ativo')}
-                         </p>
-                     </div>
-                 </div>
-                 {isCritical && (
-                     <button 
-                        onClick={() => onOpenCheckout('renewal')}
-                        className="bg-red-600 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg shadow-md animate-bounce"
-                     >
-                        PAGAR AGORA
-                     </button>
-                 )}
-             </div>
-
-             <div className="grid grid-cols-2 gap-4 mb-4">
-                 <div className="bg-white/60 p-3 rounded-xl border border-gray-100">
-                     <p className="text-[10px] text-gray-400 font-bold uppercase flex items-center gap-1">
-                         <Calendar className="w-3 h-3" /> Data Compra
-                     </p>
-                     <p className="text-sm font-bold text-gray-800 font-mono mt-0.5">{formatDate(purchaseDate)}</p>
-                 </div>
-                 <div className={`p-3 rounded-xl border ${isCritical ? 'bg-red-100 border-red-200' : 'bg-white/60 border-gray-100'}`}>
-                     <p className={`text-[10px] font-bold uppercase flex items-center gap-1 ${isCritical ? 'text-red-700' : 'text-gray-400'}`}>
-                         <Clock className="w-3 h-3" /> Vencimento
-                     </p>
-                     <p className={`text-sm font-bold font-mono mt-0.5 ${isCritical ? 'text-red-700' : 'text-gray-800'}`}>{formatDate(expiryDate)}</p>
+                     <div className={`p-2.5 rounded-xl ${hasAnyBlockedService ? 'bg-red-200 text-red-700' : 'bg-green-100 text-green-700'}`}><CreditCard className="w-6 h-6" /></div>
+                     <div><h3 className="font-bold text-gray-900 text-lg leading-none">Suas Assinaturas</h3><p className={`text-xs font-bold mt-1 ${hasAnyBlockedService ? 'text-red-600' : 'text-green-600'}`}>{hasAnyBlockedService ? 'Renovação Necessária' : 'Status Ativo'}</p></div>
                  </div>
              </div>
+             <div className="flex flex-col gap-3">
+                 {user.services.length > 0 ? user.services.map((rawSvc, i) => {
+                     const name = getServiceName(rawSvc);
+                     const details = SERVICE_CATALOG.find(s => name.toLowerCase().includes(s.id.toLowerCase()));
+                     const iconBg = details?.iconColor || 'bg-gray-500';
+                     const { expiryDate, isBlocked, isGracePeriod, daysLeft } = calculateSubscriptionStatus(rawSvc);
+                     let statusText = `Vence: ${formatDate(expiryDate)}`;
+                     let statusColor = "text-gray-500";
+                     let dotColorClass = "bg-green-500"; 
+                     if (daysLeft < 0) { dotColorClass = "bg-gray-900"; } else if (daysLeft <= 2) { dotColorClass = "bg-red-600"; }
+                     if (isBlocked) { statusText = `Vencido há ${Math.abs(daysLeft)} dias`; statusColor = "text-red-600"; } else if (isGracePeriod) { statusText = `Tolerância (${Math.abs(daysLeft)} dias)`; statusColor = "text-orange-500"; }
 
-             <div className="bg-gray-50/80 p-3 rounded-xl border border-gray-100">
-                 <p className="text-[10px] text-gray-400 font-bold uppercase mb-2">Apps Inclusos no Plano</p>
-                 <div className="flex flex-wrap gap-2">
-                     {user.services.length > 0 ? user.services.map((svc, i) => (
-                         <button 
-                            key={i} 
-                            onClick={() => handleServiceClick(svc)}
-                            className="inline-flex items-center px-2.5 py-1.5 rounded-lg bg-white border border-gray-200 text-xs font-bold text-gray-700 shadow-sm hover:scale-105 active:scale-95 transition-all hover:border-primary-300 hover:text-primary-700 cursor-pointer"
-                         >
-                             <div className="w-1.5 h-1.5 rounded-full bg-green-500 mr-2"></div>
-                             {svc}
-                         </button>
-                     )) : (
-                         <span className="text-xs text-gray-400 italic">Nenhum serviço listado.</span>
-                     )}
-                 </div>
-                 <p className="text-[9px] text-gray-400 mt-2 text-right italic">Toque nos apps para ver detalhes</p>
+                     return (
+                         <div key={i} className={`w-full flex items-center justify-between p-3 rounded-xl border bg-white hover:shadow-md transition-all relative overflow-hidden ${isBlocked ? 'border-red-200 bg-red-50' : 'border-gray-200'}`}>
+                            <button onClick={() => handleServiceClick(rawSvc)} className="flex items-center gap-3 relative z-10 flex-1 text-left">
+                                <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold text-white shadow-sm ${iconBg} shrink-0 text-lg`}>{name.substring(0,1).toUpperCase()}</div>
+                                <div className="min-w-0"><span className="font-bold text-gray-900 text-base truncate block flex items-center gap-2"><div className={`w-2.5 h-2.5 rounded-full ${dotColorClass} shadow-sm`}></div>{name}</span><span className={`text-[10px] font-bold ${statusColor}`}>{statusText}</span></div>
+                            </button>
+                            <button onClick={() => onOpenCheckout('renewal', name)} className={`ml-2 px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wide transition-all active:scale-95 flex flex-col items-center gap-1 shadow-lg group ${isBlocked ? 'bg-gradient-to-br from-red-600 to-rose-600 text-white shadow-red-200 animate-pulse' : 'bg-gradient-to-br from-emerald-400 to-green-600 text-white shadow-green-200 hover:shadow-green-300 hover:-translate-y-0.5'}`}>
+                                <RefreshCw className={`w-4 h-4 ${!isBlocked && 'group-hover:rotate-180 transition-transform duration-500'}`} />
+                                Renovar
+                            </button>
+                         </div>
+                     );
+                 }) : (<div className="text-center p-4 bg-gray-50 rounded-xl border border-dashed border-gray-300"><span className="text-xs text-gray-400 italic">Nenhum serviço ativo.</span></div>)}
              </div>
         </div>
 
-        {/* MENU RÁPIDO (GRID) */}
-        <div className="grid grid-cols-2 gap-3">
-            <button
-                onClick={onOpenSupport}
-                className="col-span-2 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-4 flex items-center justify-between shadow-lg shadow-blue-200 text-white relative overflow-hidden group active:scale-[0.98] transition-all"
-            >
-                <div className="relative z-10 flex items-center gap-3">
-                    <div className="bg-white/20 p-2 rounded-xl backdrop-blur-md">
-                        <Cast className="w-6 h-6" />
-                    </div>
-                    <div className="text-left">
-                        <h3 className="font-bold text-lg leading-tight">Conecte na sua TV ou celular</h3>
-                        <p className="text-blue-100 text-xs mt-1">Guia passo a passo</p>
-                    </div>
+        {/* CONNECT BUTTON - MOVED BELOW SUBSCRIPTIONS */}
+        <button 
+            onClick={onOpenSupport} 
+            className="w-full bg-gradient-to-r from-pink-600 to-blue-600 rounded-2xl p-5 shadow-lg shadow-blue-200/50 text-white relative overflow-hidden group active:scale-[0.98] transition-all transform hover:-translate-y-1 hover:shadow-xl"
+        >
+            <div className="absolute top-0 right-0 -mt-2 -mr-2 w-24 h-24 bg-white/20 rounded-full blur-2xl"></div>
+            <div className="relative z-10 flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                    <div className="bg-white/20 p-3 rounded-full backdrop-blur-sm"><div className="flex gap-1"><Tv className="w-6 h-6 text-white" /><Smartphone className="w-4 h-4 text-white self-end" /></div></div>
+                    <div className="text-left"><h3 className="font-black text-lg leading-tight tracking-tight">Precisa de Ajuda?</h3><p className="text-blue-100 text-xs mt-1 font-semibold">Conectar na TV ou Celular</p></div>
                 </div>
-                <ChevronRight className="w-5 h-5 text-white/70 group-hover:translate-x-1 transition-transform" />
-                <Tv className="absolute -right-2 -bottom-4 w-24 h-24 text-white opacity-10 rotate-12" />
-            </button>
-
-            <button 
-                onClick={onOpenGame} 
-                className="bg-white border border-pink-100 p-4 rounded-2xl flex flex-col items-center justify-center gap-2 shadow-sm active:scale-95 transition-all hover:bg-pink-50"
-            >
-                <div className="bg-pink-50 p-3 rounded-full text-pink-500">
-                    <Gamepad2 className="w-6 h-6" />
-                </div>
-                <span className="font-bold text-gray-700 text-sm">Jogos</span>
-            </button>
-
-            <button 
-                onClick={() => onOpenCheckout('renewal')} 
-                className="bg-white border border-green-100 p-4 rounded-2xl flex flex-col items-center justify-center gap-2 shadow-sm active:scale-95 transition-all hover:bg-green-50"
-            >
-                <div className="bg-green-50 p-3 rounded-full text-green-600">
-                    <ShoppingBag className="w-6 h-6" />
-                </div>
-                <span className="font-bold text-gray-700 text-xs text-center leading-tight">Compras e<br/>renovações</span>
-            </button>
-        </div>
+                <ChevronRight className="w-6 h-6 text-white/80 group-hover:translate-x-1 transition-transform" />
+            </div>
+        </button>
 
         {/* ACCESS CREDENTIALS */}
         <div className="space-y-4 pt-2">
-             <div className="flex items-center justify-between px-1">
-                <h2 className="text-lg font-extrabold text-gray-800 flex items-center">
-                  <div className="w-1 h-6 bg-primary-600 rounded-full mr-3"></div>
-                  Suas Contas
-                </h2>
-                {loadingCreds && <RefreshCw className="w-4 h-4 text-primary-600 animate-spin" />}
-             </div>
-             
-             {isDemoUser && (
-                 <div className="bg-indigo-50 border border-indigo-100 p-4 rounded-xl text-center">
-                     <p className="text-xs text-indigo-700 font-bold mb-1">Modo de Demonstração</p>
-                     <p className="text-[10px] text-indigo-500">As senhas abaixo são fictícias para teste da interface.</p>
-                 </div>
-             )}
-
-             <div className="grid gap-3">
-               {!loadingCreds && !assignedCredentials.some(c => c.cred) && (
-                  <p className="text-gray-500 text-sm bg-gray-50 p-4 rounded-xl text-center border border-gray-200">
-                    Aguardando liberação de acesso ou nenhuma assinatura ativa.
-                  </p>
-               )}
-
-               {assignedCredentials.map(({ service, cred, alert }, idx) => {
+             <div className="flex items-center justify-between px-1"><h2 className="text-xl font-extrabold text-gray-800 flex items-center bg-white/50 px-3 py-1 rounded-lg backdrop-blur-sm"><div className={`w-1.5 h-6 rounded-full mr-3 ${activeTheme.class}`}></div>Suas Contas</h2>{loadingCreds && <RefreshCw className="w-5 h-5 text-gray-400 animate-spin" />}</div>
+             <div className="grid gap-4">
+               {!loadingCreds && !assignedCredentials.some(c => c.cred) && <p className="text-gray-500 text-sm bg-white p-6 rounded-xl text-center border border-gray-200 shadow-sm">Aguardando liberação de acesso.</p>}
+               {assignedCredentials.map(({ service, cred, daysActive }, idx) => {
+                 const name = getServiceName(service);
                  const displayEmail = isDemoUser ? 'demo@eudorama.com' : cred?.email;
                  const displayPass = isDemoUser ? 'demo1234' : cred?.password;
-                 let displayAlert = isDemoUser ? null : alert;
-                 
-                 // System Status Override
-                 if (sysConfig && sysConfig.serviceStatus) {
-                     // Check fuzzy match
-                     const statusKey = Object.keys(sysConfig.serviceStatus).find(k => service.toLowerCase().includes(k.toLowerCase()));
-                     if (statusKey) {
-                         const status = sysConfig.serviceStatus[statusKey];
-                         if (status === 'issues') displayAlert = "⚠️ Serviço instável no momento. Aguarde.";
-                         if (status === 'down') displayAlert = "🚨 Serviço fora do ar para manutenção.";
-                     }
-                 }
+                 const status = getCredentialStatus(name, daysActive);
+                 const { isBlocked, daysLeft } = calculateSubscriptionStatus(service);
+                 let dotColorClass = "bg-green-500"; if (daysLeft < 0) dotColorClass = "bg-gray-900"; else if (daysLeft <= 2) dotColorClass = "bg-red-600";
 
                  return cred ? (
-                   <div key={idx} className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden group hover:border-primary-200 transition-colors">
-                     <div className="bg-gray-50 px-4 py-3 border-b border-gray-100 flex justify-between items-center">
-                        <span className="font-bold text-gray-800 text-base flex items-center gap-2">
-                            <div className={`w-2 h-2 rounded-full ${displayAlert?.includes('fora do ar') ? 'bg-red-500' : (displayAlert ? 'bg-yellow-500' : 'bg-green-500')}`}></div>
-                            {service}
-                        </span>
-                        {displayAlert && <AlertCircle className="w-4 h-4 text-yellow-500 animate-pulse" />}
-                     </div>
-
-                     <div className="p-4 flex flex-col gap-3">
-                        <div className="flex justify-between items-center bg-gray-50/50 p-2 rounded-lg border border-gray-100">
-                            <div className="overflow-hidden">
-                                <p className="text-[10px] text-gray-400 font-bold uppercase">Email</p>
-                                <p className="text-sm font-bold text-gray-900 truncate">{displayEmail}</p>
-                            </div>
-                            <button onClick={() => copyToClipboard(displayEmail || '', cred.id + 'email')} className="p-2 text-gray-400 hover:text-primary-600 transition-colors">
-                                {copiedId === cred.id + 'email' ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
-                            </button>
-                        </div>
-
-                        <div className="flex justify-between items-center bg-gray-50/50 p-2 rounded-lg border border-gray-100">
-                            <div className="overflow-hidden">
-                                <p className="text-[10px] text-gray-400 font-bold uppercase">Senha</p>
-                                <p className="text-sm font-bold text-gray-900 tracking-wider">{displayPass}</p>
-                            </div>
-                            <button onClick={() => copyToClipboard(displayPass || '', cred.id + 'pass')} className="p-2 text-gray-400 hover:text-primary-600 transition-colors">
-                                {copiedId === cred.id + 'pass' ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
-                            </button>
-                        </div>
-                        
-                        {displayAlert && <div className={`text-[10px] font-bold p-2 rounded text-center ${displayAlert.includes('fora do ar') ? 'bg-red-50 text-red-700' : 'bg-yellow-50 text-yellow-700'}`}>{displayAlert}</div>}
+                   <div key={idx} className={`bg-white rounded-2xl shadow-lg border overflow-hidden group transition-colors relative ${isBlocked ? 'border-red-200' : 'border-gray-200 hover:border-pink-300'}`}>
+                     <div className="bg-gray-50 px-5 py-4 border-b border-gray-100 flex justify-between items-center"><span className="font-extrabold text-gray-800 text-lg flex items-center gap-2"><div className={`w-3 h-3 rounded-full ${dotColorClass}`}></div>{name}</span>{isBlocked && <Lock className="w-4 h-4 text-red-500" />}</div>
+                     {!isBlocked && (<div className={`px-5 py-2 ${status.color} text-xs font-bold flex items-center`}><Clock className="w-3 h-3 mr-2" />{status.text}</div>)}
+                     <div className="p-5 flex flex-col gap-4 relative">
+                        {isBlocked && (<div className="absolute inset-0 bg-white/80 backdrop-blur-sm z-10 flex flex-col items-center justify-center p-4 text-center rounded-b-2xl"><div className="flex flex-col items-center max-w-[200px]"><div className="bg-red-100 p-3 rounded-full mb-2 shadow-sm"><Lock className="w-6 h-6 text-red-600" /></div><h3 className="text-red-900 font-extrabold text-lg leading-tight mb-1">Acesso Pausado</h3><p className="text-red-700 text-[10px] font-medium mb-3 leading-snug">Tolerância de 3 dias expirou.</p><button onClick={() => onOpenCheckout('renewal')} className="bg-red-600 text-white w-full py-3 rounded-xl font-bold shadow-lg text-sm hover:bg-red-700 active:scale-95 transition-transform">Renovar para Liberar</button></div></div>)}
+                        <div className="flex justify-between items-center bg-gray-50/50 p-3 rounded-xl border border-gray-100 hover:bg-white transition-colors"><div className="overflow-hidden"><p className="text-[10px] text-gray-400 font-bold uppercase">Email</p><p className="text-base font-bold text-gray-900 truncate select-all">{isBlocked ? '•••••••••••' : displayEmail}</p></div><button disabled={isBlocked} onClick={() => copyToClipboard(displayEmail || '', cred.id + 'email')} className="p-2.5 bg-white border border-gray-200 rounded-lg text-gray-400 hover:text-pink-600 transition-colors shadow-sm active:scale-90">{copiedId === cred.id + 'email' ? <Check className="w-5 h-5 text-green-500" /> : <Copy className="w-5 h-5" />}</button></div>
+                        <div className="flex justify-between items-center bg-gray-50/50 p-3 rounded-xl border border-gray-100 hover:bg-white transition-colors"><div className="overflow-hidden"><p className="text-[10px] text-gray-400 font-bold uppercase">Senha</p><p className="text-base font-bold text-gray-900 tracking-wider select-all">{isBlocked ? '••••••' : displayPass}</p></div><button disabled={isBlocked} onClick={() => copyToClipboard(displayPass || '', cred.id + 'pass')} className="p-2.5 bg-white border border-gray-200 rounded-lg text-gray-400 hover:text-pink-600 transition-colors shadow-sm active:scale-90">{copiedId === cred.id + 'pass' ? <Check className="w-5 h-5 text-green-500" /> : <Copy className="w-5 h-5" />}</button></div>
                      </div>
                    </div>
                  ) : null;
@@ -552,30 +435,25 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onOpenSupport, onOpenChecko
              </div>
         </div>
 
-        {/* --- MISSING SERVICES (UPSHELL) --- */}
+        {/* --- MISSING SERVICES (REDESIGNED UPSELL - TICKET STYLE WITH BIG BUTTON) --- */}
         {missingServices.length > 0 && (
-            <div className="space-y-4 pt-4">
-                <div className="flex items-center justify-between px-1">
-                    <h2 className="text-lg font-extrabold text-gray-800 flex items-center">
-                      <Rocket className="w-5 h-5 text-orange-500 mr-2" />
-                      Turbine seu Plano
-                    </h2>
-                </div>
-                
-                <div className="flex overflow-x-auto gap-4 pb-4 px-1 scrollbar-hide">
+            <div className="space-y-4 pt-6 pb-4 border-t border-gray-200 bg-white/80 p-4 rounded-3xl backdrop-blur-sm">
+                <div className="flex items-center justify-between px-1"><h2 className="text-xl font-extrabold text-gray-800 flex items-center"><Rocket className="w-6 h-6 text-orange-500 mr-2 animate-pulse" />Disponíveis para Assinar</h2></div>
+                <div className="flex overflow-x-auto gap-4 pb-4 px-1 scrollbar-hide snap-x">
                     {missingServices.map((service) => (
-                        <div key={service.id} className="min-w-[260px] bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden relative flex flex-col">
-                            <div className={`h-1.5 w-full bg-gradient-to-r ${service.color}`}></div>
-                            <div className="p-5 flex-1 flex flex-col">
-                                <h3 className="text-lg font-extrabold text-gray-900 mb-1">{service.name}</h3>
-                                <p className="text-xs text-gray-500 mb-4">{service.benefits[0]}</p>
-                                <div className="mt-auto flex items-center justify-between">
-                                    <span className="font-bold text-gray-900">{service.price}</span>
-                                    <button 
-                                        onClick={() => onOpenCheckout('new_sub', service.name)}
-                                        className="bg-gray-900 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-black transition-colors"
-                                    >
-                                        Assinar
+                        <div key={service.id} className="snap-center min-w-[260px] max-w-[260px] h-[340px] rounded-3xl overflow-hidden relative shadow-xl group cursor-pointer transition-transform hover:scale-[1.02] flex flex-col" onClick={() => onOpenCheckout('new_sub', service.name)}>
+                            <div className={`absolute inset-0 bg-gradient-to-br ${service.color}`}></div>
+                            <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
+                            <div className="relative h-[45%] p-5 flex flex-col justify-between z-10 bg-white/10 backdrop-blur-md border-b border-white/20">
+                                <div className="flex justify-between items-start"><div className="bg-white/20 p-2 rounded-xl backdrop-blur-md shadow-inner"><Crown className="w-6 h-6 text-white" /></div><span className="bg-black/30 px-3 py-1 rounded-full text-[10px] font-bold text-white uppercase backdrop-blur-sm border border-white/10">Premium</span></div>
+                                <div><h3 className="text-2xl font-black text-white tracking-tight drop-shadow-md">{service.name}</h3><div className="w-10 h-1 bg-white/50 rounded-full mt-2"></div></div>
+                            </div>
+                            <div className="relative h-[55%] bg-white p-5 flex flex-col justify-between z-10">
+                                <div className="space-y-2">{service.benefits.slice(0, 2).map((benefit, i) => (<div key={i} className="flex items-center text-xs text-gray-600 font-medium"><CheckCircle className={`w-4 h-4 mr-2 ${service.iconColor.replace('bg-', 'text-')}`} /><span className="truncate">{benefit}</span></div>))}</div>
+                                <div className="mt-2 pt-3 border-t border-dashed border-gray-200">
+                                    <div className="mb-2"><p className="text-[10px] uppercase font-bold text-gray-400">Mensal</p><p className={`text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r ${service.color}`}>{service.price}</p></div>
+                                    <button className={`w-full py-3 rounded-xl shadow-lg bg-gradient-to-r ${service.color} text-white font-bold text-sm uppercase tracking-wide flex items-center justify-center gap-2 active:scale-95 transition-transform animate-pulse`}>
+                                        <ShoppingCart className="w-4 h-4" /> COMPRAR AGORA
                                     </button>
                                 </div>
                             </div>
@@ -584,7 +462,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onOpenSupport, onOpenChecko
                 </div>
             </div>
         )}
-
+      </div>
       </div>
     </div>
   );

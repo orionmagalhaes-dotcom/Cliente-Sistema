@@ -1,5 +1,6 @@
+
 import { createClient } from '@supabase/supabase-js';
-import { User, ClientDBRow, Dorama, AdminUserDBRow } from '../types';
+import { User, ClientDBRow, Dorama, AdminUserDBRow, SubscriptionDetail } from '../types';
 import { MOCK_DB_CLIENTS } from '../constants';
 
 // --- CONFIGURAÇÃO DO SUPABASE ---
@@ -178,6 +179,7 @@ export const processUserLogin = (userRows: ClientDBRow[]): { user: User | null, 
 
     const primaryPhone = userRows[0].phone_number;
     const allServices = new Set<string>();
+    const subscriptionMap: Record<string, SubscriptionDetail> = {};
     let bestRow = userRows[0];
     let maxExpiryTime = 0;
     let isDebtorAny = false;
@@ -203,7 +205,20 @@ export const processUserLogin = (userRows: ClientDBRow[]): { user: User | null, 
            subs = [s.replace(/^"|"$/g, '')];
         }
       }
-      subs.forEach(s => s && allServices.add(s));
+      
+      subs.forEach(s => {
+          if (s) {
+              const cleanService = s.split('|')[0].trim();
+              allServices.add(cleanService);
+              
+              subscriptionMap[cleanService] = {
+                  purchaseDate: row.purchase_date,
+                  durationMonths: row.duration_months,
+                  isDebtor: row.is_debtor
+              };
+          }
+      });
+
       if (row.is_debtor) isDebtorAny = true;
       if (row.override_expiration) overrideAny = true;
 
@@ -227,6 +242,7 @@ export const processUserLogin = (userRows: ClientDBRow[]): { user: User | null, 
       phoneNumber: bestRow.phone_number,
       purchaseDate: bestRow.purchase_date, 
       durationMonths: bestRow.duration_months,
+      subscriptionDetails: subscriptionMap,
       services: combinedServices,
       isDebtor: isDebtorAny,
       overrideExpiration: overrideAny,

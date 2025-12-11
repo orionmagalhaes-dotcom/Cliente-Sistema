@@ -1,38 +1,36 @@
 
 import React, { useState } from 'react';
 import { User } from '../types';
-import { checkUserStatus, loginWithPassword, registerClientPassword, getTestUser } from '../services/clientService';
-import { Smartphone, LockKeyhole, ArrowRight, Loader2, UserPlus, LogIn, AlertCircle, TestTube, HelpCircle, ShieldCheck, Eye, EyeOff, CheckCircle } from 'lucide-react';
+import { checkUserStatus, loginWithPassword, registerClientPassword, getTestUser, verifyAdminLogin, getRotationalTestPassword } from '../services/clientService';
+import { Loader2, Lock, AlertCircle, UserCheck, Shield, Sparkles, Play, ChevronRight, Star } from 'lucide-react';
 
 interface LoginProps {
   onLogin: (user: User, remember: boolean, isTest?: boolean) => void;
   onAdminClick: () => void;
+  onAdminLoginSuccess?: (remember: boolean) => void;
 }
 
-// Helper function to generate the current 3-hour block password
-const getCurrentTestPassword = () => {
-    const block = Math.floor(Date.now() / (3 * 60 * 60 * 1000));
-    const suffix = (block * 13 % 1000).toString().padStart(3, '0');
-    return `TESTE-${suffix}`;
-};
-
-const Login: React.FC<LoginProps> = ({ onLogin, onAdminClick }) => {
-  const [activeTab, setActiveTab] = useState<'login' | 'test'>('login');
+const Login: React.FC<LoginProps> = ({ onLogin, onAdminClick, onAdminLoginSuccess }) => {
   const [step, setStep] = useState<'identify' | 'password' | 'create_password'>('identify');
   
+  // User Login State
   const [digits, setDigits] = useState('');
   const [fullPhoneFound, setFullPhoneFound] = useState('');
   const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false); // New state for password visibility
-  const [keepConnected, setKeepConnected] = useState(true);
-  const [testPassword, setTestPassword] = useState('');
+  const [showAdmin, setShowAdmin] = useState(false);
+  const [loadingTest, setLoadingTest] = useState(false);
   
+  // Admin inputs
+  const [adminUser, setAdminUser] = useState('');
+  const [adminPass, setAdminPass] = useState('');
+
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
   // --- HANDLERS ---
   
   const handleDigitsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      // Aceita apenas números e limita a 4 caracteres
       const val = e.target.value.replace(/\D/g, '').slice(0, 4);
       setDigits(val);
       if (error) setError('');
@@ -41,9 +39,14 @@ const Login: React.FC<LoginProps> = ({ onLogin, onAdminClick }) => {
   const handleIdentify = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    const cleanDigits = digits.replace(/\D/g, '');
     
-    if (cleanDigits.length < 4) {
+    // Easter egg para admin
+    if (digits === '0000') {
+        setShowAdmin(true);
+        return;
+    }
+
+    if (digits.length < 4) {
       setError('Preencha os 4 dígitos finais.');
       return;
     }
@@ -51,7 +54,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, onAdminClick }) => {
     setLoading(true);
     
     try {
-        const status = await checkUserStatus(cleanDigits);
+        const status = await checkUserStatus(digits);
 
         if (status.exists && status.phoneMatches.length > 0) {
             setFullPhoneFound(status.phoneMatches[0]);
@@ -61,10 +64,9 @@ const Login: React.FC<LoginProps> = ({ onLogin, onAdminClick }) => {
                 setStep('create_password');
             }
         } else {
-            setError('Cliente não encontrado.');
+            setError('Conta não encontrada.');
         }
     } catch (err) {
-        console.error(err);
         setError('Erro de conexão.');
     } finally {
         setLoading(false);
@@ -76,7 +78,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, onAdminClick }) => {
     setError('');
     
     if (!password.trim()) {
-        setError('Digite sua senha.');
+        setError('Digite a senha.');
         return;
     }
 
@@ -85,7 +87,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, onAdminClick }) => {
     setLoading(false);
 
     if (user) {
-        onLogin(user, keepConnected);
+        onLogin(user, true);
     } else {
         setError(loginError || 'Senha incorreta.');
     }
@@ -96,7 +98,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, onAdminClick }) => {
       setError('');
 
       if (password.length < 4) {
-          setError('A senha deve ter pelo menos 4 caracteres.');
+          setError('Mínimo 4 dígitos.');
           return;
       }
 
@@ -104,295 +106,219 @@ const Login: React.FC<LoginProps> = ({ onLogin, onAdminClick }) => {
       const success = await registerClientPassword(fullPhoneFound, password);
       
       if (success) {
-          const { user, error: loginError } = await loginWithPassword(fullPhoneFound, password);
+          const { user } = await loginWithPassword(fullPhoneFound, password);
           setLoading(false);
-          if (user) {
-              onLogin(user, keepConnected);
-          } else {
-              setError(loginError || 'Erro ao entrar após cadastro.');
-          }
+          if (user) onLogin(user, true);
+          else setError('Erro ao entrar.');
       } else {
           setLoading(false);
-          setError('Erro ao salvar senha.');
+          setError('Erro ao salvar.');
       }
   };
 
-  const handleTestLogin = async (e: React.FormEvent) => {
-      e.preventDefault();
-      setError('');
-      setLoading(true);
-
-      const validPassword = getCurrentTestPassword();
+  const handleFreeTest = async () => {
+      setLoadingTest(true);
+      await new Promise(r => setTimeout(r, 800));
+      const { user } = await getTestUser();
+      setLoadingTest(false);
       
-      if (testPassword.trim().toUpperCase() === validPassword) {
-          const { user, error } = await getTestUser();
-          if (user) {
-              onLogin(user, false, true); 
-          } else {
-              setError(error || 'Erro no teste.');
-          }
+      if (user) {
+          onLogin(user, false, true);
       } else {
-          setError('Senha de teste inválida.');
+          setError('Teste indisponível.');
       }
-      setLoading(false);
   };
 
-  const handleRecovery = () => {
-      window.open(`https://wa.me/558894875029?text=Ol%C3%A1!%20Esqueci%20minha%20senha%20de%20acesso%20ao%20app%20(N%C3%BAmero%20final%20${fullPhoneFound.slice(-4)}).`, '_blank');
+  const handleAdminLogin = async (e: React.FormEvent) => {
+      e.preventDefault();
+      const isValid = await verifyAdminLogin(adminUser, adminPass);
+      if (isValid) {
+          if (onAdminLoginSuccess) onAdminLoginSuccess(false);
+          else onAdminClick();
+      } else {
+          // Check for Test User Code
+          const testPass = getRotationalTestPassword();
+          if (adminPass.toUpperCase() === testPass) {
+               const { user } = await getTestUser();
+               if(user) onLogin(user, false, true);
+          } else {
+              setError('Acesso negado.');
+          }
+      }
   };
 
-  const resetLogin = () => {
-      setDigits('');
-      setPassword('');
-      setStep('identify');
-      setError('');
-      setShowPassword(false);
-  };
+  // --- SCREEN RENDER ---
+
+  if (showAdmin) {
+      return (
+          <div className="min-h-screen bg-gray-900 flex items-center justify-center p-6 font-sans">
+              <div className="bg-white rounded-3xl p-8 w-full max-w-sm animate-fade-in">
+                  <h2 className="text-2xl font-bold mb-4 text-center text-gray-900">Admin / Teste</h2>
+                  <form onSubmit={handleAdminLogin} className="space-y-4">
+                      <input type="text" placeholder="User" className="w-full border p-3 rounded-xl bg-gray-50 text-gray-900" value={adminUser} onChange={e => setAdminUser(e.target.value)} />
+                      <input type="password" placeholder="Pass/Code" className="w-full border p-3 rounded-xl bg-gray-50 text-gray-900" value={adminPass} onChange={e => setAdminPass(e.target.value)} />
+                      {error && <p className="text-red-500 text-sm font-bold text-center">{error}</p>}
+                      <div className="flex gap-2">
+                          <button type="button" onClick={() => setShowAdmin(false)} className="flex-1 bg-gray-200 text-gray-800 py-3 rounded-xl font-bold">Voltar</button>
+                          <button type="submit" className="flex-1 bg-black text-white py-3 rounded-xl font-bold">Entrar</button>
+                      </div>
+                  </form>
+              </div>
+          </div>
+      );
+  }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 relative overflow-hidden font-sans flex-col">
+    <div className="min-h-screen flex flex-col items-center justify-center font-sans px-4 relative overflow-hidden bg-gradient-to-br from-pink-900 via-rose-900 to-purple-900">
       
       {/* Background Decor */}
-      <div className="absolute top-0 left-0 w-full h-1/2 bg-primary-700 rounded-b-[3rem] shadow-2xl z-0"></div>
-      <div className="absolute top-10 left-10 w-32 h-32 bg-white/10 rounded-full blur-2xl"></div>
-      <div className="absolute top-20 right-20 w-48 h-48 bg-pink-500/20 rounded-full blur-3xl"></div>
+      <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
+          <div className="absolute -top-[20%] -left-[10%] w-[50%] h-[50%] bg-pink-600 rounded-full blur-[120px] opacity-30 animate-pulse"></div>
+          <div className="absolute top-[40%] -right-[10%] w-[40%] h-[40%] bg-purple-600 rounded-full blur-[100px] opacity-30 animate-pulse delay-700"></div>
+          <div className="absolute -bottom-[20%] left-[20%] w-[60%] h-[60%] bg-rose-600 rounded-full blur-[130px] opacity-20 animate-pulse delay-1000"></div>
+      </div>
 
-      {/* Admin Button */}
-      <button 
-        onClick={onAdminClick}
-        className="absolute top-4 right-4 text-white/50 hover:text-white transition-colors z-50 p-2"
-      >
-        <LockKeyhole className="w-4 h-4" />
-      </button>
-
-      {/* Main Card */}
-      <div className="w-full max-w-[360px] bg-white rounded-3xl shadow-xl z-10 overflow-hidden mx-4 animate-fade-in-up">
+      <div className="w-full max-w-sm bg-white/10 backdrop-blur-xl border border-white/20 shadow-2xl rounded-[2rem] p-6 space-y-6 animate-fade-in-up relative z-10">
         
-        {/* Header Section */}
-        <div className="bg-white p-8 pb-4 text-center">
-            <div className="w-16 h-16 bg-primary-50 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-sm text-primary-600">
-                <ShieldCheck className="w-8 h-8" />
+        {/* LOGO AREA */}
+        <div className="text-center pt-1">
+            <div className="flex items-center justify-center gap-2 mb-1">
+                <div className="bg-gradient-to-tr from-pink-500 to-rose-400 p-2 rounded-xl shadow-lg shadow-pink-900/40 animate-bounce">
+                    <Play className="w-5 h-5 text-white fill-white ml-0.5" />
+                </div>
+                <h1 className="text-2xl font-black text-white tracking-tighter drop-shadow-md">
+                    Eu<span className="text-pink-200">Dorama</span>
+                </h1>
             </div>
-            <h1 className="text-2xl font-black text-gray-900 tracking-tight">Clientes EuDorama</h1>
-            <p className="text-gray-500 text-sm mt-1">Gerencie seu acesso exclusivo</p>
+            <p className="text-pink-100/80 text-xs font-medium tracking-wide flex items-center justify-center gap-1">
+                <Sparkles className="w-3 h-3 text-yellow-300" /> Clube de Assinantes
+            </p>
         </div>
 
-        {/* Navigation Tabs */}
-        <div className="px-8 flex border-b border-gray-100">
-            <button 
-                onClick={() => { setActiveTab('login'); resetLogin(); }}
-                className={`flex-1 py-3 text-sm font-bold transition-all border-b-2 ${activeTab === 'login' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
-            >
-                Entrar
-            </button>
-            <button 
-                onClick={() => { setActiveTab('test'); resetLogin(); }}
-                className={`flex-1 py-3 text-sm font-bold transition-all border-b-2 flex justify-center items-center ${activeTab === 'test' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
-            >
-                <TestTube className="w-3 h-3 mr-1.5" /> Teste Grátis
-            </button>
-        </div>
-
-        {/* Content Area */}
-        <div className="p-8 pt-6">
-            
-            {/* --- TAB: TEST LOGIN --- */}
-            {activeTab === 'test' && (
-                 <form onSubmit={handleTestLogin} className="space-y-6">
-                    <div className="bg-indigo-50 p-4 rounded-2xl border border-indigo-100 text-center">
-                        <p className="text-xs text-indigo-800 font-bold uppercase mb-1">Senha Rotativa</p>
-                        <p className="text-xs text-indigo-600">A senha muda a cada 3 horas. Solicite no suporte.</p>
-                    </div>
-
-                    <div className="space-y-2">
-                      <label className="text-xs font-bold text-gray-500 uppercase ml-1">Senha de Teste</label>
-                      <input
-                        type="text"
-                        placeholder="TESTE-000"
-                        className="w-full bg-gray-50 text-center text-xl font-bold tracking-widest text-gray-900 py-4 rounded-xl border-2 border-gray-200 focus:border-indigo-500 focus:bg-white outline-none transition-all uppercase placeholder-gray-300"
-                        value={testPassword}
-                        onChange={(e) => setTestPassword(e.target.value.toUpperCase())}
-                        autoFocus
-                      />
-                    </div>
+        {step === 'identify' ? (
+            <form onSubmit={handleIdentify} className="space-y-5">
+                
+                <div className="space-y-2">
+                    <label className="text-[10px] font-bold text-pink-200 uppercase tracking-widest block text-center opacity-80">
+                        Confirme seu número
+                    </label>
                     
-                    {error && (
-                        <div className="p-3 bg-red-50 rounded-xl flex items-center justify-center gap-2 text-red-600 text-xs font-bold animate-pulse">
-                            <AlertCircle className="w-4 h-4" /> {error}
-                        </div>
-                    )}
+                    {/* INPUT COM MÁSCARA FIXA VISUAL */}
+                    <div className="bg-black/20 border border-white/10 rounded-xl p-3 flex items-center justify-center relative group focus-within:border-pink-300/50 focus-within:bg-black/30 transition-all">
+                        <span className="text-white/30 text-xl font-bold tracking-widest select-none font-mono">
+                            (••) ••••• - 
+                        </span>
+                        <input
+                            type="tel"
+                            maxLength={4}
+                            placeholder="____"
+                            className="w-20 bg-transparent text-center text-xl font-bold text-white outline-none placeholder-white/20 tracking-[0.2em] font-mono focus:placeholder-transparent ml-1"
+                            value={digits}
+                            onChange={handleDigitsChange}
+                            autoFocus
+                        />
+                    </div>
+                </div>
 
+                {error && (
+                    <div className="flex items-center justify-center gap-2 text-white font-bold text-xs bg-red-500/20 border border-red-500/30 p-2.5 rounded-xl animate-pulse backdrop-blur-md">
+                        <AlertCircle className="w-4 h-4" /> {error}
+                    </div>
+                )}
+
+                <div className="space-y-2">
                     <button
-                      type="submit"
-                      disabled={loading}
-                      className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 rounded-xl shadow-lg shadow-indigo-200 transition-all active:scale-[0.98] disabled:opacity-50 flex justify-center items-center"
+                        type="submit"
+                        disabled={loading || digits.length < 4}
+                        className="w-full bg-white hover:bg-pink-50 text-pink-900 font-black py-3.5 rounded-xl shadow-lg shadow-pink-900/20 transition-all active:scale-95 flex justify-center items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed group"
                     >
-                      {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Iniciar Teste'}
+                        {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <>Continuar <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform"/></>}
                     </button>
-                 </form>
-            )}
-
-            {/* --- TAB: REGULAR LOGIN --- */}
-            {activeTab === 'login' && (
-                <div className="space-y-6">
                     
-                    {/* STEP 1: IDENTIFY */}
-                    {step === 'identify' && (
-                        <form onSubmit={handleIdentify} className="space-y-6 animate-fade-in">
-                            <div className="text-center space-y-4">
-                                <label className="block text-sm font-bold text-gray-600">
-                                    Confirme seu número de telefone
-                                </label>
-                                
-                                {/* Visual Input Mockup - MASKED */}
-                                <div className="bg-gray-100 p-4 rounded-xl border-2 border-gray-200 flex items-center justify-center">
-                                    <span className="text-xl font-black text-gray-400 mr-2 select-none tracking-widest">(••) ••••• -</span>
-                                    <input
-                                        type="tel"
-                                        maxLength={4}
-                                        placeholder="____"
-                                        className="w-20 bg-transparent text-center text-xl font-black text-primary-600 placeholder-gray-300 border-none focus:ring-0 outline-none p-0 tracking-[0.2em]"
-                                        value={digits}
-                                        onChange={handleDigitsChange}
-                                        autoFocus
-                                    />
-                                </div>
-                                <p className="text-xs text-primary-500 font-medium">Digite apenas os 4 últimos dígitos</p>
-                            </div>
-                            
-                            <div className="flex items-center justify-center gap-2">
-                                <input 
-                                    type="checkbox" 
-                                    id="keepConnected" 
-                                    checked={keepConnected} 
-                                    onChange={e => setKeepConnected(e.target.checked)}
-                                    className="w-4 h-4 text-primary-600 rounded border-gray-300 focus:ring-primary-500"
-                                />
-                                <label htmlFor="keepConnected" className="text-xs text-gray-500 font-bold cursor-pointer">
-                                    Manter conectado
-                                </label>
-                            </div>
-
-                            {error && (
-                                <div className="p-3 bg-red-50 rounded-xl text-center text-red-600 text-xs font-bold">
-                                    {error}
-                                </div>
-                            )}
-
-                            <button
-                                type="submit"
-                                disabled={loading || digits.length < 4}
-                                className="w-full bg-primary-600 hover:bg-primary-700 text-white font-bold py-4 rounded-xl shadow-lg shadow-primary-200 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center"
-                            >
-                                {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : (
-                                    <span className="flex items-center">Continuar <ArrowRight className="ml-2 w-4 h-4" /></span>
-                                )}
-                            </button>
-                        </form>
-                    )}
-
-                    {/* STEP 2: PASSWORD */}
-                    {(step === 'password' || step === 'create_password') && (
-                        <form onSubmit={step === 'password' ? handleLoginSubmit : handleRegisterPassword} className="space-y-5 animate-slide-up">
-                            
-                            <div className="flex justify-between items-center bg-gray-50 p-3 rounded-xl border border-gray-100">
-                                <div>
-                                    <p className="text-[10px] text-gray-400 font-bold uppercase">Cliente</p>
-                                    <p className="text-sm font-bold text-gray-800 tracking-wider">•••••-{fullPhoneFound.slice(-4)}</p>
-                                </div>
-                                <button type="button" onClick={resetLogin} className="text-xs font-bold text-primary-600 hover:bg-white px-3 py-1.5 rounded-lg transition-colors">
-                                    Alterar
-                                </button>
-                            </div>
-
-                            <div className="space-y-2">
-                                <label className="text-xs font-bold text-gray-500 uppercase ml-1">
-                                    {step === 'create_password' ? 'Crie sua Senha de Acesso' : 'Digite sua Senha'}
-                                </label>
-                                <div className="relative group">
-                                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                                        <LockKeyhole className="h-5 w-5 text-gray-400 group-focus-within:text-primary-500 transition-colors" />
-                                    </div>
-                                    <input
-                                        type={showPassword ? 'text' : 'password'}
-                                        className="w-full bg-white pl-12 pr-12 py-4 border-2 border-gray-200 rounded-xl focus:border-primary-500 focus:ring-0 outline-none transition-all text-lg font-bold text-gray-900 placeholder-gray-300"
-                                        placeholder={showPassword ? "123456" : "******"}
-                                        value={password}
-                                        onChange={(e) => setPassword(e.target.value)}
-                                        autoFocus
-                                    />
-                                    {/* Password Toggle Button */}
-                                    <button 
-                                        type="button"
-                                        onClick={() => setShowPassword(!showPassword)}
-                                        className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-gray-600 transition-colors focus:outline-none"
-                                        tabIndex={-1}
-                                    >
-                                        {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-                                    </button>
-                                </div>
-                            </div>
-
-                            {step === 'password' && (
-                                <button type="button" onClick={handleRecovery} className="w-full text-center text-xs text-primary-600 font-bold hover:underline flex items-center justify-center gap-1">
-                                    <HelpCircle className="w-3 h-3" /> Esqueci a senha
-                                </button>
-                            )}
-
-                            {step === 'create_password' && (
-                                 <p className="text-[10px] text-center text-gray-400">
-                                     Como é seu primeiro acesso, defina uma senha simples.
-                                 </p>
-                            )}
-
-                            {error && (
-                                <div className="p-3 bg-red-50 rounded-xl text-center text-red-600 text-xs font-bold">
-                                    {error}
-                                </div>
-                            )}
-
-                            <button
-                                type="submit"
-                                disabled={loading}
-                                className={`w-full text-white font-bold py-4 rounded-xl shadow-lg transition-all active:scale-[0.98] disabled:opacity-50 flex justify-center items-center ${step === 'create_password' ? 'bg-green-600 hover:bg-green-700 shadow-green-200' : 'bg-primary-600 hover:bg-primary-700 shadow-primary-200'}`}
-                            >
-                                {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : (
-                                    step === 'create_password' ? 
-                                    <span className="flex items-center"><UserPlus className="mr-2 w-5 h-5"/> Criar e Entrar</span> :
-                                    <span className="flex items-center"><LogIn className="mr-2 w-5 h-5"/> Acessar Conta</span>
-                                )}
-                            </button>
-                        </form>
-                    )}
+                    {/* Botão Teste Grátis */}
+                    <button
+                        type="button"
+                        onClick={handleFreeTest}
+                        disabled={loadingTest}
+                        className="w-full py-3 font-bold text-xs text-pink-100 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl transition-all flex justify-center items-center gap-2 active:scale-95"
+                    >
+                         {loadingTest ? <Loader2 className="w-3 h-3 animate-spin" /> : <><Star className="w-3 h-3 text-yellow-300 fill-yellow-300" /> Quero testar grátis</>}
+                    </button>
                 </div>
-            )}
-            
-            {/* PARTNERSHIP & TRUST BADGES */}
-            <div className="mt-8 border-t border-gray-100 pt-4 flex flex-col items-center gap-2 opacity-80">
-                <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-1.5 bg-green-50 px-2 py-1 rounded-full border border-green-100">
-                        <CheckCircle className="w-3 h-3 text-green-600" />
-                        <span className="text-[9px] font-bold text-green-700 uppercase">100% Seguro</span>
+
+                <div className="text-center">
+                     <p className="text-white/40 text-[9px] uppercase font-bold tracking-widest">
+                        Exemplo: (88) 99999-<span className="text-white">1234</span>
+                     </p>
+                </div>
+
+            </form>
+        ) : (
+            // PASSWORD STEP
+            <form onSubmit={step === 'password' ? handleLoginSubmit : handleRegisterPassword} className="space-y-5 animate-slide-up">
+                
+                <div className="text-center bg-black/20 p-3 rounded-xl border border-white/5 backdrop-blur-sm">
+                    <div className="w-10 h-10 bg-white/10 rounded-full flex items-center justify-center mx-auto mb-2">
+                        <UserCheck className="w-5 h-5 text-pink-200" />
                     </div>
-                    <div className="flex items-center gap-1.5 bg-blue-50 px-2 py-1 rounded-full border border-blue-100">
-                        <ShieldCheck className="w-3 h-3 text-blue-600" />
-                        <span className="text-[9px] font-bold text-blue-700 uppercase">Dados Criptografados</span>
+                    <p className="text-[10px] text-pink-200 font-bold uppercase mb-0.5">Identificado como</p>
+                    <p className="font-bold text-lg text-white tracking-widest font-mono">••• •••• {fullPhoneFound.slice(-4)}</p>
+                </div>
+
+                <div className="bg-black/20 rounded-xl p-3 border border-white/10 focus-within:border-pink-300/50 focus-within:bg-black/30 transition-all">
+                    <label className="block text-[10px] font-bold text-pink-200 uppercase mb-1 ml-1">
+                        {step === 'create_password' ? 'Crie sua senha de acesso' : 'Sua senha'}
+                    </label>
+                    <div className="flex items-center">
+                        <Lock className="w-4 h-4 text-pink-200 mr-2 ml-1" />
+                        <input
+                            type="password"
+                            className="w-full bg-transparent font-bold text-xl text-white outline-none placeholder-white/10"
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            autoFocus
+                            placeholder="******"
+                        />
                     </div>
                 </div>
-                <div className="flex items-center gap-2 mt-1">
-                    <span className="text-[9px] text-gray-400 font-medium">Infraestrutura:</span>
-                    <div className="flex items-center gap-1 bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-100 grayscale hover:grayscale-0 transition-all">
-                        {/* Using a generic cloud icon to represent Google Cloud without external image dependency risk */}
-                        <svg viewBox="0 0 24 24" className="w-4 h-4 text-gray-500 fill-current" xmlns="http://www.w3.org/2000/svg"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
-                        <span className="text-[10px] font-bold text-gray-600">Secured by Google Cloud</span>
-                    </div>
-                </div>
-            </div>
 
-        </div>
+                {error && (
+                    <div className="bg-red-500/20 border border-red-500/30 p-2.5 rounded-xl backdrop-blur-sm">
+                        <p className="text-white font-bold text-center text-xs">{error}</p>
+                    </div>
+                )}
+
+                <div className="flex flex-col gap-2">
+                    <button
+                        type="submit"
+                        disabled={loading}
+                        className="w-full bg-white text-pink-900 font-black py-3.5 rounded-xl shadow-lg transition-transform active:scale-95 flex justify-center items-center gap-2"
+                    >
+                        {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : (step === 'create_password' ? 'Definir Senha e Entrar' : <>Acessar Painel <UserCheck className="w-4 h-4"/></>)}
+                    </button>
+                    
+                    <button 
+                        type="button" 
+                        onClick={() => { setStep('identify'); setDigits(''); setPassword(''); setError(''); }}
+                        className="text-pink-200/70 font-bold text-xs py-2 hover:text-white transition-colors"
+                    >
+                        Não sou este número
+                    </button>
+                </div>
+            </form>
+        )}
+
       </div>
       
-      <p className="absolute bottom-6 text-[10px] text-gray-400 font-medium tracking-widest uppercase opacity-60">© 2024 EuDorama App</p>
+      {/* Footer Branding & Admin Link */}
+      <div className="absolute bottom-4 w-full flex flex-col items-center gap-2 z-10">
+          <button 
+            onClick={() => setShowAdmin(true)}
+            className="text-[9px] font-bold uppercase tracking-widest flex items-center gap-1 text-white/30 hover:text-white transition-all bg-black/10 hover:bg-black/30 px-3 py-1.5 rounded-full backdrop-blur-sm"
+          >
+            <Shield className="w-3 h-3" /> Área Administrativa
+          </button>
+      </div>
     </div>
   );
 };

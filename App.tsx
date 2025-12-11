@@ -12,7 +12,7 @@ import GamesHub from './components/GamesHub';
 import Toast from './components/Toast';
 import { User, Dorama } from './types';
 import { addDoramaToDB, updateDoramaInDB, removeDoramaFromDB, getUserDoramasFromDB, saveGameProgress, syncDoramaBackup, addLocalDorama } from './services/clientService';
-import { LayoutDashboard, Heart, PlayCircle, LogOut, X, CheckCircle2, MessageCircle, AlertTriangle, Gift, Gamepad2 } from 'lucide-react';
+import { LayoutDashboard, Heart, PlayCircle, LogOut, X, CheckCircle2, MessageCircle, AlertTriangle, Gift, Gamepad2, Sparkles, Home, Tv2 } from 'lucide-react';
 
 const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -248,7 +248,11 @@ const App: React.FC = () => {
   }
 
   if (!currentUser) {
-    return <Login onLogin={handleLogin} onAdminClick={handleAdminClick} />;
+    return <Login 
+              onLogin={handleLogin} 
+              onAdminClick={handleAdminClick} 
+              onAdminLoginSuccess={(rem) => { setIsAdminMode(true); handleAdminSuccess(rem); }} 
+           />;
   }
 
   const openAddModal = (type: 'watching' | 'favorites' | 'completed') => {
@@ -409,6 +413,25 @@ const App: React.FC = () => {
     }
   };
 
+  const NavItem = ({ id, icon: Icon, label }: { id: typeof activeTab, icon: any, label: string }) => {
+      const isActive = activeTab === id;
+      return (
+          <button 
+            onClick={() => setActiveTab(id)}
+            className={`flex flex-col items-center justify-center w-full h-full relative transition-all duration-300 ${isActive ? '-translate-y-2' : ''}`}
+          >
+              <div className={`p-3 rounded-full transition-all duration-300 shadow-sm ${isActive ? 'bg-gradient-to-br from-pink-500 to-purple-600 text-white shadow-pink-200 shadow-lg scale-110' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'}`}>
+                  <Icon className={`w-6 h-6 ${isActive ? 'fill-current' : ''}`} />
+              </div>
+              {isActive && (
+                  <span className="absolute -bottom-4 text-[10px] font-bold text-pink-600 animate-fade-in tracking-tight">
+                      {label}
+                  </span>
+              )}
+          </button>
+      );
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 max-w-lg mx-auto shadow-2xl relative overflow-hidden flex flex-col font-sans">
       {isTestSession && (
@@ -419,18 +442,19 @@ const App: React.FC = () => {
       
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
-      {/* Top Bar */}
-      <div className="bg-white p-4 shadow-sm flex justify-between items-center z-30 sticky top-0 border-b border-gray-200 shrink-0">
-          <h1 className="text-xl font-extrabold text-primary-700 tracking-tight">
-            Clientes EuDorama
-          </h1>
+      {/* BRANDED TOP BAR */}
+      <div className="bg-white p-4 shadow-sm flex justify-between items-center z-30 sticky top-0 border-b border-gray-100 shrink-0">
+          <div className="flex flex-col">
+              <h1 className="text-2xl font-black text-gray-900 tracking-tight flex items-center gap-1 font-sans">
+                  EuDorama <Sparkles className="w-4 h-4 text-pink-500 fill-pink-500" />
+              </h1>
+              <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest -mt-1 ml-0.5">Clube Exclusivo</span>
+          </div>
+          
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-full bg-gray-200 overflow-hidden border-2 border-primary-200">
-              <img src={`https://ui-avatars.com/api/?name=${currentUser.name || 'Dorama'}&background=fbcfe8&color=be185d`} alt="Profile" />
-            </div>
             <button 
               onClick={handleLogout}
-              className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors"
+              className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
               title="Sair do aplicativo"
             >
               <LogOut className="w-5 h-5" />
@@ -438,8 +462,8 @@ const App: React.FC = () => {
           </div>
         </div>
 
-      <main className={`flex-1 relative bg-gray-50 overflow-hidden pb-24`}>
-           <div className="h-full overflow-y-auto scrollbar-hide p-4">{renderContent()}</div>
+      <main className={`flex-1 relative overflow-hidden pb-28`}>
+           <div className="h-full overflow-y-auto scrollbar-hide">{renderContent()}</div>
       </main>
 
       {/* SUPPORT CHAT OVERLAY (FULL SCREEN) - FIXED POSITION */}
@@ -467,40 +491,37 @@ const App: React.FC = () => {
         />
       )}
 
-      {/* FLOATING ACTION BUTTONS (Only when chats/game are closed) */}
+      {/* FLOATING ACTION BUTTONS */}
       {!isSupportOpen && !isCheckoutOpen && activeTab !== 'games' && !showNameModal && (
-        <div className="fixed bottom-24 right-4 z-40 flex flex-col gap-3 items-center pointer-events-none">
-            
-            {/* Wrapper to allow pointer events on buttons only */}
-            <div className="pointer-events-auto flex flex-col gap-3 items-end">
-                
+        <div className="fixed bottom-28 right-4 z-40 flex flex-col gap-4 items-center pointer-events-none">
+            <div className="pointer-events-auto flex flex-col gap-4 items-end">
                 {/* Christmas Box Button */}
                 <div className="relative group">
-                   <div className="absolute right-full mr-2 top-1/2 -translate-y-1/2 bg-white px-2 py-1 rounded-lg text-xs font-bold shadow-md text-gray-700 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                       Contribua com nossa caixinha de natal
+                   <div className="absolute right-full mr-3 top-1/2 -translate-y-1/2 bg-white px-3 py-1.5 rounded-xl text-xs font-bold shadow-md text-gray-700 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                       Caixinha de Natal
                    </div>
                    <button 
                         onClick={() => handleOpenCheckout('gift')}
-                        className="w-11 h-11 bg-red-600 hover:bg-red-700 text-white rounded-full shadow-lg flex items-center justify-center transition-transform hover:scale-110 border-2 border-white animate-bounce"
+                        className="w-14 h-14 bg-gradient-to-br from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white rounded-full shadow-xl flex items-center justify-center transition-transform hover:scale-110 border-4 border-white animate-bounce"
                         title="Contribua com nossa caixinha de natal"
                     >
-                        <Gift className="w-5 h-5" />
+                        <Gift className="w-7 h-7" />
                     </button>
                 </div>
 
-                {/* WhatsApp Button */}
+                {/* WhatsApp Support Button */}
                 <div className="relative group">
-                    <div className="absolute right-full mr-2 top-1/2 -translate-y-1/2 bg-white px-2 py-1 rounded-lg text-xs font-bold shadow-md text-gray-700 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                    <div className="absolute right-full mr-3 top-1/2 -translate-y-1/2 bg-white px-3 py-1.5 rounded-xl text-xs font-bold shadow-md text-gray-700 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
                        Suporte Técnico
                     </div>
                     <a 
                         href="https://wa.me/558894875029?text=Ol%C3%A1!%20Preciso%20de%20ajuda%20com%20o%20Cliente%20EuDorama."
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="w-11 h-11 bg-green-500 hover:bg-green-600 text-white rounded-full shadow-lg flex items-center justify-center transition-transform hover:scale-110 border-2 border-white"
+                        className="w-14 h-14 bg-gradient-to-br from-green-400 to-green-600 hover:from-green-500 hover:to-green-700 text-white rounded-full shadow-xl flex items-center justify-center transition-transform hover:scale-110 border-4 border-white"
                         title="Fale com o Suporte"
                     >
-                        <MessageCircle className="w-5 h-5" />
+                        <MessageCircle className="w-7 h-7" />
                     </a>
                 </div>
             </div>
@@ -532,10 +553,6 @@ const App: React.FC = () => {
                     />
                 </div>
                 
-                {/* 
-                   MODIFIED: Inputs for Season/Ep ONLY shown when EDITING (editingDorama is not null).
-                   When adding new, we use defaults to simplify the UX.
-                */}
                 {(modalType === 'watching' || modalType === 'completed') && editingDorama && (
                     <div className="grid grid-cols-2 gap-4">
                         <div>
@@ -562,7 +579,6 @@ const App: React.FC = () => {
                     </div>
                 )}
 
-                {/* Rating for Favorites */}
                 {modalType === 'favorites' && (
                     <div className="text-center">
                         <label className="block text-sm font-bold text-gray-700 mb-2">Sua Avaliação (Corações)</label>
@@ -630,50 +646,17 @@ const App: React.FC = () => {
         </div>
       )}
 
-      {/* BOTTOM NAV */}
-      <nav className="bg-white border-t border-gray-200 flex justify-around items-center pb-4 pt-3 px-2 absolute bottom-0 w-full z-40 h-20 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] text-xs">
-        <button 
-          onClick={() => setActiveTab('home')}
-          className={`flex flex-col items-center space-y-1 w-1/5 ${activeTab === 'home' ? 'text-primary-700' : 'text-gray-400'}`}
-        >
-          <LayoutDashboard className={`w-6 h-6 ${activeTab === 'home' ? 'fill-current opacity-20' : ''}`} />
-          <span className="font-bold uppercase tracking-tight text-[10px]">Início</span>
-        </button>
+      {/* FLOATING BOTTOM NAV (REDESIGNED) */}
+      <div className="fixed bottom-6 inset-x-0 z-40 px-4 flex justify-center pointer-events-none">
+          <nav className="bg-white/90 backdrop-blur-lg border border-white/50 rounded-[2rem] shadow-2xl p-2 flex justify-between items-center w-full max-w-sm pointer-events-auto ring-1 ring-black/5">
+              <NavItem id="home" icon={Home} label="Início" />
+              <NavItem id="watching" icon={Tv2} label="Vendo" />
+              <NavItem id="games" icon={Gamepad2} label="Jogos" />
+              <NavItem id="favorites" icon={Heart} label="Amei" />
+              <NavItem id="completed" icon={CheckCircle2} label="Fim" />
+          </nav>
+      </div>
 
-        <button 
-          onClick={() => setActiveTab('watching')}
-          className={`flex flex-col items-center space-y-1 w-1/5 ${activeTab === 'watching' ? 'text-primary-700' : 'text-gray-400'}`}
-        >
-          <PlayCircle className={`w-6 h-6 ${activeTab === 'watching' ? 'fill-current opacity-20' : ''}`} />
-          <span className="font-bold uppercase tracking-tight text-[10px]">Assistindo</span>
-        </button>
-
-        <button 
-          onClick={() => setActiveTab('games')}
-          className={`flex flex-col items-center space-y-1 w-1/5 transform -translate-y-3 ${activeTab === 'games' ? 'text-primary-700' : 'text-gray-400'}`}
-        >
-          <div className={`rounded-full p-3 shadow-lg border-4 border-white transition-all ${activeTab === 'games' ? 'bg-primary-700 scale-105' : 'bg-primary-600'}`}>
-             <Gamepad2 className="w-6 h-6 text-white" />
-          </div>
-          <span className="font-bold uppercase tracking-tight text-[10px] mt-1">Jogos</span>
-        </button>
-
-        <button 
-          onClick={() => setActiveTab('favorites')}
-          className={`flex flex-col items-center space-y-1 w-1/5 ${activeTab === 'favorites' ? 'text-primary-700' : 'text-gray-400'}`}
-        >
-          <Heart className={`w-6 h-6 ${activeTab === 'favorites' ? 'fill-current' : ''}`} />
-          <span className="font-bold uppercase tracking-tight text-[10px]">Amei</span>
-        </button>
-
-        <button 
-          onClick={() => setActiveTab('completed')} 
-          className={`flex flex-col items-center space-y-1 w-1/5 ${activeTab === 'completed' ? 'text-primary-700' : 'text-gray-400'}`}
-        >
-          <CheckCircle2 className={`w-6 h-6 ${activeTab === 'completed' ? 'text-primary-700' : ''}`} />
-          <span className="font-bold uppercase tracking-tight text-[10px]">Fim</span>
-        </button>
-      </nav>
     </div>
   );
 };
